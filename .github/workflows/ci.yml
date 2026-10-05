@@ -1,0 +1,107 @@
+# CI de pf-svc-core (raíz de composición, DEC-050). Ramas de repo-convention.
+name: ci
+
+on:
+  push:
+    branches: [pf-core-m, pf-core-d, pf-core-q]
+  pull_request:
+    branches: [pf-core-m, pf-core-d, pf-core-q]
+
+permissions:
+  contents: read
+
+env:
+  # Los repos AI27-Tech/* son privados: go get necesita este prefijo + token.
+  GOPRIVATE: github.com/AI27-Tech/*
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+
+      - name: Configurar acceso a módulos privados
+        if: ${{ env.GH_PAT != '' }}
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: git config --global url."https://x-access-token:${GH_PAT}@github.com/".insteadOf "https://github.com/"
+
+      - name: Descargar dependencias
+        run: go mod download
+
+      # 1. Build y vet de producción (sin devauth), versiones exactas de go.mod.
+      - name: Build (producción)
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+
+      # 2. Tests, incluidas las pruebas de arranque/drenado y de adaptadores (I3)
+      #    cuando existan módulos cableados.
+      - name: Test
+        run: go test ./...
+
+      # 3. El stub de desarrollo compila con su tag.
+      - name: Build con -tags devauth
+        run: go build -tags devauth ./...
+      - name: Test con -tags devauth
+        run: go test -tags devauth ./...
+
+      # 4. Compuerta anti-stub: el binario de producción NO contiene internal/devauth.
+      - name: El binario de producción no contiene devauth
+        run: |
+          if go list -deps ./cmd/core | grep -q 'pf-svc-core/internal/devauth'; then
+            echo "ERROR: el build de producción incluye internal/devauth"
+            exit 1
+          fi
+          echo "OK: devauth ausente del build de producción"
+
+  arch-test:
+    runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/AI27-Tech/*
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+      - name: Configurar acceso a módulos privados
+        if: ${{ env.GH_PAT != '' }}
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: git config --global url."https://x-access-token:${GH_PAT}@github.com/".insteadOf "https://github.com/"
+      # 5. pf-svc-core es el ÚNICO repo autorizado a requerir otros pf-svc-* y
+      #    solo cablea aristas declaradas (00 regla 5). La versión del tool se
+      #    fija a la misma de platform-go en go.mod.
+      - name: arch-test
+        run: go run github.com/AI27-Tech/pf-pkg-platform-go/tools/arch-test@v0.1.0 .
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # 6. Imagen de core con la plantilla de pf-pkg-platform-go, CMD_PATH=./cmd/core.
+      #    La imagen NUNCA se construye con -tags devauth.
+      - name: Obtener la plantilla de Dockerfile
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git config --global url."https://x-access-token:${GH_PAT}@github.com/".insteadOf "https://github.com/"
+          # La plantilla vive en pf-pkg-platform-go/templates/Dockerfile (v0.1.0).
+          git clone --depth 1 --branch v0.1.0 https://github.com/AI27-Tech/pf-pkg-platform-go /tmp/platform-go
+          cp /tmp/platform-go/templates/Dockerfile ./Dockerfile
+      - name: Build de la imagen core
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          build-args: |
+            CMD_PATH=./cmd/core
+          secrets: |
+            gh_token=${{ secrets.GH_PAT }}

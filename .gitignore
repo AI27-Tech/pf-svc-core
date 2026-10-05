@@ -1,0 +1,11 @@
+# Binarios compilados
+/core
+/cmd/core/core
+*.out
+
+# go.work local no versionado (00 regla 7)
+go.work
+go.work.sum
+
+# Dockerfile copiado desde la plantilla de pf-pkg-platform-go en CI
+/Dockerfile

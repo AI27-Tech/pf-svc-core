@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026:10:06 12:55
+
+**Resumen:** Se agregó la plantilla de Pull Request del backend, adaptada al stack Go de AI27.
+
+**Cambios:**
+- Se agregó `.github/pull_request_template.md` (core no tenía): invariantes de arquitectura (I1-I5, contrato primero), base de datos, eventos/bus, verificación (go build/vet/test, arch-test, gofmt), CHANGELOG y checklist de convenciones.
+
+**Archivos modificados:**
+- `.github/pull_request_template.md`
+
 ## 2026:10:06 12:00
 
 **Resumen:** Se agregó la regla de steering de CHANGELOG y este archivo, para alinear `pf-svc-core` con la convención del resto de repos.

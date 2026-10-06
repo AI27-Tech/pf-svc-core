@@ -1,4 +1,9 @@
 # CI de pf-svc-core (raíz de composición, DEC-050). Ramas de repo-convention.
+#
+# Los repos AI27-Tech/* son privados, así que resolver módulos exige un token
+# con lectura de pf-pkg-contracts y pf-pkg-platform-go. Se inyecta por el secreto
+# de repo GH_PAT (un PAT; el GITHUB_TOKEN por defecto no lee otros repos
+# privados). GOPRIVATE evita que go valide estos módulos contra sum.golang.org.
 name: ci
 
 on:
@@ -11,12 +16,13 @@ permissions:
   contents: read
 
 env:
-  # Los repos AI27-Tech/* son privados: go get necesita este prefijo + token.
   GOPRIVATE: github.com/AI27-Tech/*
 
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    env:
+      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -24,10 +30,15 @@ jobs:
           go-version: "1.27"
           cache: true
 
+      - name: Verificar que el secreto GH_PAT existe
+        run: |
+          if [ -z "${GH_PAT}" ]; then
+            echo "ERROR: falta el secreto de repo GH_PAT (PAT con lectura de los repos privados AI27-Tech/*)."
+            echo "Config: Settings -> Secrets and variables -> Actions -> New repository secret -> GH_PAT"
+            exit 1
+          fi
+
       - name: Configurar acceso a módulos privados
-        if: ${{ env.GH_PAT != '' }}
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: git config --global url."https://x-access-token:${GH_PAT}@github.com/".insteadOf "https://github.com/"
 
       - name: Descargar dependencias
@@ -63,16 +74,20 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOPRIVATE: github.com/AI27-Tech/*
+      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27"
           cache: true
+      - name: Verificar que el secreto GH_PAT existe
+        run: |
+          if [ -z "${GH_PAT}" ]; then
+            echo "ERROR: falta el secreto de repo GH_PAT."
+            exit 1
+          fi
       - name: Configurar acceso a módulos privados
-        if: ${{ env.GH_PAT != '' }}
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: git config --global url."https://x-access-token:${GH_PAT}@github.com/".insteadOf "https://github.com/"
       # 5. pf-svc-core es el ÚNICO repo autorizado a requerir otros pf-svc-* y
       #    solo cablea aristas declaradas (00 regla 5). La versión del tool se
@@ -82,14 +97,20 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    env:
+      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - name: Verificar que el secreto GH_PAT existe
+        run: |
+          if [ -z "${GH_PAT}" ]; then
+            echo "ERROR: falta el secreto de repo GH_PAT."
+            exit 1
+          fi
       # 6. Imagen de core con la plantilla de pf-pkg-platform-go, CMD_PATH=./cmd/core.
       #    La imagen NUNCA se construye con -tags devauth.
       - name: Obtener la plantilla de Dockerfile
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global url."https://x-access-token:${GH_PAT}@github.com/".insteadOf "https://github.com/"
           # La plantilla vive en pf-pkg-platform-go/templates/Dockerfile (v0.1.0).

@@ -22,7 +22,10 @@
 // bff → mensajeria es SIEMPRE HTTP (otro deployable), así que no tiene adaptador
 // en proceso aquí.
 //
-// Hoy este paquete está vacío de adaptadores: ningún módulo de `core` publica
-// todavía su superficie Consultas() (DEC-049). No se escriben tipos de wire ni
-// adaptadores contra una superficie inexistente (00 regla 6).
+// Cableados hoy:
+//   - AptitudRecursosEnProceso (operacion → catalogos, puerto AptitudRecursos),
+//     con sus pruebas de paridad (I3) en aptitud_recursos_test.go.
+//
+// El resto de las aristas se agregan cuando sus módulos existan; no se escriben
+// tipos de wire ni adaptadores contra una superficie inexistente (00 regla 6).
 package adapters

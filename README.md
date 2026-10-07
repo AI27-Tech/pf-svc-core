@@ -16,36 +16,62 @@ de servidor y de workers. Si aparece lógica de dominio aquí, pertenece a
 
 | Módulo | Estado | Nota |
 |---|---|---|
-| catalogos | ❌ no cableado | `pf-svc-catalogos` aún vacío, sin versión publicada |
-| operacion | ❌ no cableado | `pf-svc-operacion` aún vacío, sin versión publicada |
+| catalogos | ✅ cableado (`v0.1.0`) | hoja del grafo; un pool `svc_catalogos` |
+| operacion | ✅ cableado (`v0.1.1`) | cinco pools (`op_viajes/asignacion/bitacora/auditoria/roster`, ADR 33); arista `operacion → catalogos` en proceso |
 | identidad | ❌ no cableado | en paralelo (DEC-049); mientras tanto, `devauth` |
 | bff | ❌ no cableado | — |
 | reportes | ❌ no cableado | — |
 
-**Hoy `core` arranca sin ningún módulo** y solo sirve `/health` y `/ready`
-(DEC-049): no hay ningún `pf-svc-*` con versión publicada que componer. Este
-repo se completa de forma **incremental**: cada vez que un módulo de `core`
-publica versión, se agrega a `go.mod`, se cablea en `construirModulos` de
-`cmd/core/main.go`, se crea su adaptador en proceso en `internal/adapters/` con
-sus pruebas de paridad (I3), y se actualiza esta tabla.
+`core` compone hoy **catalogos** (hoja) y **operacion**. La arista síncrona
+`operacion → catalogos` (puerto `AptitudRecursos`) se resuelve con el adaptador
+**en proceso** de `internal/adapters/`, que respeta el mismo presupuesto de
+tiempo (`operacion.PresupuestoAptitud`), la misma taxonomía de error y la
+cancelación que el adaptador HTTP de `pf-svc-operacion` (I3); sus pruebas de
+paridad viven junto al adaptador. El adaptador HTTP del mismo puerto **no** se
+cablea aquí porque catalogos está co-ubicado.
+
+Los módulos aún no montan rutas de negocio (sus `Routes` son scaffold) ni
+declaran workers; `core` sirve `/health` y `/ready`, abre un pool por rol y los
+registra en readiness. Este repo se completa de forma **incremental**: cada vez
+que un módulo publica versión, se agrega a `go.mod`, se cablea en
+`construirModulos` de `cmd/core/main.go`, se crea su adaptador en proceso con sus
+pruebas, y se actualiza esta tabla.
 
 Orden de llegada esperado (DEC-049): `catalogos` + `operacion` → `identidad` →
 `bff` → `reportes`.
 
 ## Correr local
 
+`core` abre **un pool por rol** (I1), cada uno con su propia cadena de conexión.
+Las variables son obligatorias (la configuración falla listando todas las que
+falten, no solo la primera):
+
+| Variable | Rol |
+|---|---|
+| `DB_SVC_CATALOGOS_URL` | `svc_catalogos` |
+| `DB_OP_VIAJES_URL` | `op_viajes` |
+| `DB_OP_ASIGNACION_URL` | `op_asignacion` |
+| `DB_OP_BITACORA_URL` | `op_bitacora` |
+| `DB_OP_AUDITORIA_URL` | `op_auditoria` |
+| `DB_OP_ROSTER_URL` | `op_roster` |
+
 En producción (sin tag), `core` usa el verificador JWT real y exige `JWKS_URL`:
 
 ```bash
 SERVICE_NAME=core HTTP_ADDR=:8080 JWKS_URL=https://idp.interno/.well-known/jwks.json \
+  DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
+  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
   go run ./cmd/core
 ```
 
 En desarrollo, con el stub de autenticación (`devauth`, DEC-049), no se necesita
-un IdP:
+un IdP (las cadenas de BD siguen siendo obligatorias):
 
 ```bash
-SERVICE_NAME=core HTTP_ADDR=:8080 go run -tags devauth ./cmd/core
+SERVICE_NAME=core HTTP_ADDR=:8080 \
+  DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
+  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
+  go run -tags devauth ./cmd/core
 
 curl localhost:8080/health   # {"status":"ok"}
 curl localhost:8080/ready    # {"status":"ok"} | 503
@@ -84,9 +110,12 @@ resuelve en servidor (DEC-053).
 
 ## Pendientes y lo que espera a ADR 32
 
-- **Composición real:** bloqueada hasta que `catalogos` y `operacion` publiquen
-  versión con su `New()`/`Consultas()` (DEC-049). Hasta entonces no hay
-  adaptadores en proceso ni workers que arrancar.
+- **Composición real:** catalogos (`v0.1.0`) y operacion (`v0.1.1`) ya están
+  cableados con sus pools y la arista en proceso `operacion → catalogos`. Sus
+  `Routes` y `Workers` siguen en scaffold (sin rutas de negocio ni workers), así
+  que todavía no hay outbox que relevar ni consumidores que arrancar; se cablean
+  cuando los módulos los implementen. Faltan por llegar `identidad`, `bff` y
+  `reportes` (DEC-049).
 - **Adaptador real del broker V1** (para la outbox y los consumidores de
   `sesion.revocada`) e **IdP on-premise**: en espera de que ADR 32 elija
   componente (DEC-062). En desarrollo, `core` usará `bus/memory` de

@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026:10:05 (hora local)
+
+**Resumen:** Primer incremento de composición real (prompt 09, DEC-049): `core` ya cablea `catalogos` (`v0.1.0`) y `operacion` (`v0.1.1`), resolviendo la arista `operacion → catalogos` con el adaptador EN PROCESO de `internal/adapters/` y sus pruebas de paridad (I3). Antes `core` arrancaba sin módulos.
+
+**Cambios:**
+- `go.mod`: se fijan `pf-svc-catalogos v0.1.0` y `pf-svc-operacion v0.1.1` (versiones exactas, sin `replace` ni `go.work`).
+- `internal/adapters/aptitud_recursos.go` (nuevo): `AptitudRecursosEnProceso`, el adaptador en proceso del puerto `operacion.AptitudRecursos` sobre `catalogos.Consultas()`. Respeta el mismo presupuesto de tiempo (`operacion.PresupuestoAptitud`, leído del consumidor, no duplicado), la misma taxonomía de error (vencimiento/cancelación → Degradado, igual que el HTTP; el resto se propaga sin recategorizar) y la cancelación del contexto.
+- `internal/adapters/aptitud_recursos_test.go` (nuevo): pruebas de paridad I3 — impone el deadline del presupuesto, timeout → Degradado, cancelación propagada, y cada clase de error del contrato se propaga sin recategorizar.
+- `cmd/core/main.go`: `construirModulos` ahora construye catalogos (hoja) y operacion (cinco pools/rol, ADR 33) con el adaptador en proceso; nuevo `abrirPools` abre un pool por rol (I1), los registra en readiness y los drena al apagar; `config.Load` exige las seis cadenas de conexión por rol (falla con todas las faltantes).
+- `internal/adapters/doc.go`, `README.md`: tabla de módulos cableados, variables de entorno por rol y pendientes actualizados.
+
+**Verificado:** gofmt limpio, `go vet ./...`, `go build ./...`, `go test ./...` (pruebas de paridad del adaptador), build+test `-tags devauth`, compuerta anti-stub (devauth ausente del build de producción), build `-mod=readonly`, arch-test OK.
+
+**Nota:** los `Routes`/`Workers` de ambos módulos siguen en scaffold (sin rutas de negocio ni workers), así que todavía no hay outbox que relevar ni consumidores de `sesion.revocada` que arrancar; se cablean cuando los módulos los implementen. La arista restringida a identidad (`Revocacion`) se cablea cuando exista `identidad` (DEC-051).
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`
+- `cmd/core/main.go`
+- `internal/adapters/aptitud_recursos.go` (nuevo)
+- `internal/adapters/aptitud_recursos_test.go` (nuevo)
+- `internal/adapters/doc.go`
+- `README.md`
+
 ## 2026:10:06 12:55
 
 **Resumen:** Se agregó la plantilla de Pull Request del backend, adaptada al stack Go de AI27.

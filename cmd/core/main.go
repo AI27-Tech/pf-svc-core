@@ -35,6 +35,7 @@ import (
 	catalogos "github.com/AI27-Tech/pf-svc-catalogos"
 	"github.com/AI27-Tech/pf-svc-core/internal/adapters"
 	operacion "github.com/AI27-Tech/pf-svc-operacion"
+	reportes "github.com/AI27-Tech/pf-svc-reportes"
 )
 
 // Claves de entorno de las cadenas de conexión por rol. Cada rol tiene su
@@ -48,6 +49,7 @@ const (
 	envDBOpBitacora   = "DB_OP_BITACORA_URL"
 	envDBOpAuditoria  = "DB_OP_AUDITORIA_URL"
 	envDBOpRoster     = "DB_OP_ROSTER_URL"
+	envDBReportes     = "DB_SVC_REPORTES_URL"
 )
 
 // rolesDeBD asocia cada clave de entorno a su rol de BD. Es la fuente única de
@@ -61,6 +63,7 @@ var rolesDeBD = []struct {
 	{envDBOpBitacora, "op_bitacora"},
 	{envDBOpAuditoria, "op_auditoria"},
 	{envDBOpRoster, "op_roster"},
+	{envDBReportes, "svc_reportes"},
 }
 
 // module es la superficie pública que cada pf-svc-* expone a la raíz (00-indice
@@ -172,6 +175,7 @@ type pools struct {
 	opBitacora   *pgxpool.Pool
 	opAuditoria  *pgxpool.Pool
 	opRoster     *pgxpool.Pool
+	reportes     *pgxpool.Pool
 }
 
 // abrirPools abre un pool por cada rol declarado en rolesDeBD, lo registra en la
@@ -202,6 +206,7 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 		opBitacora:   abiertos["op_bitacora"],
 		opAuditoria:  abiertos["op_auditoria"],
 		opRoster:     abiertos["op_roster"],
+		reportes:     abiertos["svc_reportes"],
 	}, cerrar, nil
 }
 
@@ -209,11 +214,12 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 // Es el único punto que cambia en cada incremento (DEC-049): al publicar un
 // módulo, se agrega su New(...) aquí con sus pools y adaptadores en proceso.
 //
-// Hoy cablea catalogos (hoja) y operacion, resolviendo la arista
-// operacion → catalogos con el adaptador EN PROCESO de internal/adapters/ (I3).
-// El adaptador HTTP del mismo puerto vive en pf-svc-operacion y NO se cablea
-// aquí porque catalogos está co-ubicado. No se cablea un consumidor cuyo destino
-// síncrono no exista (00 regla 6); no hay fakes de dominio en main.
+// Hoy cablea catalogos (hoja), operacion y reportes, resolviendo las aristas
+// co-ubicadas operacion → catalogos y reportes → catalogos con los adaptadores
+// EN PROCESO de internal/adapters/ (I3). Los adaptadores HTTP de esos puertos
+// viven en los repos consumidores y NO se cablean aquí porque catalogos está
+// co-ubicado. No se cablea un consumidor cuyo destino síncrono no exista (00
+// regla 6); no hay fakes de dominio en main. Faltan identidad y bff (DEC-049).
 //
 // TODO(core): aplicar las migraciones que cada módulo exporte (migrations.FS)
 // con el rol dueño de cada esquema antes de servir tráfico. Pendiente del
@@ -242,6 +248,16 @@ func construirModulos(p pools, logger *slog.Logger) ([]module, error) {
 		return nil, fmt.Errorf("construir operacion: %w", err)
 	}
 
-	logger.Info("módulos cableados: catalogos + operacion (operacion → catalogos en proceso)")
-	return []module{cat, op}, nil
+	// reportes: un pool/rol (svc_reportes, ADR 18). La arista a catalogos
+	// (dimensiones) se resuelve con el adaptador en proceso sobre cat.Consultas().
+	rep, err := reportes.New(reportes.Pools{Reportes: p.reportes}, reportes.Deps{
+		Catalogos: adapters.NewReportesCatalogos(cat.Consultas()),
+		// Revocacion: se cablea cuando identidad exista (DEC-051).
+	})
+	if err != nil {
+		return nil, fmt.Errorf("construir reportes: %w", err)
+	}
+
+	logger.Info("módulos cableados: catalogos + operacion + reportes (aristas a catalogos en proceso)")
+	return []module{cat, op, rep}, nil
 }

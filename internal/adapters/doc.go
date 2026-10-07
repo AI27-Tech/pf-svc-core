@@ -25,6 +25,8 @@
 // Cableados hoy:
 //   - AptitudRecursosEnProceso (operacion → catalogos, puerto AptitudRecursos),
 //     con sus pruebas de paridad (I3) en aptitud_recursos_test.go.
+//   - ReportesCatalogosEnProceso (reportes → catalogos, puerto CatalogosPort),
+//     con sus pruebas de paridad (I3) en reportes_catalogos_test.go.
 //
 // El resto de las aristas se agregan cuando sus módulos existan; no se escriben
 // tipos de wire ni adaptadores contra una superficie inexistente (00 regla 6).

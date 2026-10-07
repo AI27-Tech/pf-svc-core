@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026:10:07 17:27 — identidad + bff (composition root completo)
+
+**Resumen:** Se cablean identidad y bff en core, completando el composition root de los cinco módulos de V1 (arch-test exige exactamente `[bff, identidad, operacion, catalogos, reportes]`). Para el deployable `core`: ya compone, autentica y monta las rutas de los cinco; las aristas síncronas co-ubicadas se resuelven con adaptadores en proceso con paridad I3.
+
+**Cambios:**
+- `go.mod`: se fijan las versiones nuevas (`catalogos v0.1.1`, `operacion v0.1.3`, `reportes v0.1.1`) y se agregan `identidad v0.1.1` y `bff v0.1.0`, todas exactas.
+- `cmd/core/main.go`: pool `svc_identidad` (`DB_SVC_IDENTIDAD_URL`) en `rolesDeBD`, `pools` y `abrirPools`. `construirModulos` construye los cinco módulos y conecta las aristas: `Revocacion` en operacion/catalogos/reportes y `bff.Deps{Operacion, Identidad, Verificador}`. identidad se devuelve aparte porque su `Routes` pide verificador y revocación (firma distinta de la interfaz `module`); sus `Workers()` (relay de outbox) entran en la recolección. El autenticador (real o `devauth`) se inyecta en bff y en las rutas protegidas de identidad.
+- `internal/adapters/revocacion.go` (nuevo): `RevocacionEnProceso`, un solo tipo que satisface los tres `RevocacionPort` (firma idéntica, DEC-051), sobre `identidad.Consultas().Revocacion()`. Tres constructores, cada uno con el `PresupuestoRevocacion` de su consumidor (I3).
+- `internal/adapters/bff_identidad.go` (nuevo): `BFFIdentidadEnProceso`, satisface `bff.IdentidadPort` sobre `identidad.Consultas().Sesion()`, con `bff.PresupuestoIdentidad`.
+- `internal/adapters/bff_operacion.go` (+ test, nuevos): `BFFOperacionEnProceso`, satisface `bff.OperacionPort` sobre `operacion.Consultas()`, con `bff.PresupuestoOperacion`. Pruebas de paridad I3 (presupuesto, timeout→Degradado, cancelación, propagación de error por clase).
+- `.github/workflows/ci.yml`: pin de arch-test subido de `@v0.1.0` a `@v0.1.1` (la versión que valida `requires_exactly` y honra `shared_packages`/`roles`).
+- `README.md`: tabla de los cinco módulos, adaptadores en proceso, env var de identidad, ejemplos de arranque y brechas conocidas.
+
+**Verificado:** gofmt limpio, `go vet ./...`, `go build ./...`, `go test ./...` (nuevas pruebas de paridad bff→operacion), build y test `-tags devauth`, compuerta anti-stub (`go list -deps ./cmd/core` sin `internal/devauth`), build `-mod=readonly`, `go build ./cmd/core`, y **arch-test@v0.1.1 OK con los cinco módulos**. En runtime: core falla listando las ocho variables de BD faltantes incluida `DB_SVC_IDENTIDAD_URL`; con `-tags devauth` y `CORE_PRODUCCION=true` el stub se niega a arrancar.
+
+**Brechas / alcance (no es evidencia de G2, DEC-049):** los servicios de dominio de los módulos son scaffold; las llamadas síncronas devuelven "no implementado" en runtime. La proyección de tombstones de bff (`bff.Deps.Revocacion`) va `nil`: su worker de `sesion.revocada` espera el bus (ADR 32), así que la revocación no es efectiva end-to-end todavía. bff cablea solo sus aristas de fase (a) (operacion, identidad); catalogos y reportes son fase (b). Paridad I3 de los adaptadores de identidad (bff→identidad, revocación): probada por conformación de tipos en el build; la paridad de runtime no se prueba en core porque `identidad.Consultas()` no expone un seam fakeable (el servicio vive en su `internal/`).
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`
+- `cmd/core/main.go`
+- `internal/adapters/revocacion.go` (nuevo)
+- `internal/adapters/bff_identidad.go` (nuevo)
+- `internal/adapters/bff_operacion.go` (nuevo), `internal/adapters/bff_operacion_test.go` (nuevo)
+- `.github/workflows/ci.yml`
+- `README.md`
+
 ## 2026:10:05 (hora local) — reportes
 
 **Resumen:** Segundo incremento de composición (prompt 09): `core` suma `reportes` (`v0.1.0`) a catalogos y operacion, resolviendo la arista `reportes → catalogos` con un adaptador EN PROCESO y sus pruebas de paridad (I3).

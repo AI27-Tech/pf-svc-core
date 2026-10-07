@@ -16,31 +16,44 @@ de servidor y de workers. Si aparece lógica de dominio aquí, pertenece a
 
 | Módulo | Estado | Nota |
 |---|---|---|
-| catalogos | ✅ cableado (`v0.1.0`) | hoja del grafo; un pool `svc_catalogos` |
-| operacion | ✅ cableado (`v0.1.1`) | cinco pools (`op_viajes/asignacion/bitacora/auditoria/roster`, ADR 33); arista `operacion → catalogos` en proceso |
-| reportes | ✅ cableado (`v0.1.0`) | un pool `svc_reportes` (ADR 18); arista `reportes → catalogos` en proceso |
-| identidad | ❌ no cableado | en paralelo (DEC-049); mientras tanto, `devauth` |
-| bff | ❌ no cableado | — |
+| identidad | ✅ cableado (`v0.1.1`) | hoja del grafo; un pool `svc_identidad`; destino de las aristas de revocación y de sesión; relay de outbox en `Workers()` |
+| catalogos | ✅ cableado (`v0.1.1`) | hoja del grafo; un pool `svc_catalogos`; arista restringida `catalogos → identidad` (revocación) en proceso |
+| operacion | ✅ cableado (`v0.1.3`) | cinco pools (`op_viajes/asignacion/bitacora/auditoria/roster`, ADR 33); aristas `operacion → catalogos` y la restringida `operacion → identidad` en proceso |
+| reportes | ✅ cableado (`v0.1.1`) | un pool `svc_reportes` (ADR 18); aristas `reportes → catalogos` y la restringida `reportes → identidad` en proceso |
+| bff | ✅ cableado (`v0.1.0`) | sin pool (no es dueño de datos); aristas `bff → operacion` y `bff → identidad` en proceso (fase a) |
 
-`core` compone hoy **catalogos** (hoja), **operacion** y **reportes**. Las
-aristas síncronas co-ubicadas `operacion → catalogos` (puerto `AptitudRecursos`)
-y `reportes → catalogos` (puerto `CatalogosPort`) se resuelven con adaptadores
-**en proceso** de `internal/adapters/`, cada uno respetando el presupuesto de
-tiempo que su consumidor exporta (`operacion.PresupuestoAptitud`,
-`reportes.PresupuestoCatalogos`), la misma taxonomía de error y la cancelación
-que su adaptador HTTP (I3); sus pruebas de paridad viven junto a cada adaptador.
-Los adaptadores HTTP de esos puertos **no** se cablean aquí porque catalogos está
-co-ubicado.
+`core` compone los **cinco** módulos de V1: el composition root está completo
+(arch-test exige exactamente `[bff, identidad, operacion, catalogos, reportes]`).
+Las aristas síncronas co-ubicadas se resuelven con adaptadores **en proceso** de
+`internal/adapters/`, cada uno respetando el presupuesto de tiempo que su
+consumidor exporta (`operacion.PresupuestoAptitud`, `reportes.PresupuestoCatalogos`,
+`operacion/catalogos/reportes.PresupuestoRevocacion`, `bff.PresupuestoOperacion`,
+`bff.PresupuestoIdentidad`), la misma taxonomía de error y la cancelación que su
+adaptador HTTP (I3). Los adaptadores HTTP de esos puertos **no** se cablean aquí
+porque los destinos están co-ubicados.
 
-Los módulos aún no montan rutas de negocio (sus `Routes` son scaffold) ni
-declaran workers; `core` sirve `/health` y `/ready`, abre un pool por rol y los
-registra en readiness. Este repo se completa de forma **incremental**: cada vez
-que un módulo publica versión, se agrega a `go.mod`, se cablea en
-`construirModulos` de `cmd/core/main.go`, se crea su adaptador en proceso con sus
-pruebas, y se actualiza esta tabla.
+Adaptadores en proceso cableados:
 
-Orden de llegada esperado (DEC-049): `catalogos` + `operacion` → `identidad` →
-`bff` → `reportes`.
+| Arista | Adaptador | Puerto del consumidor |
+|---|---|---|
+| `operacion → catalogos` | `AptitudRecursosEnProceso` | `operacion.AptitudRecursos` |
+| `reportes → catalogos` | `ReportesCatalogosEnProceso` | `reportes.CatalogosPort` |
+| `operacion/catalogos/reportes → identidad` (restringida, DEC-051) | `RevocacionEnProceso` | `operacion.Revocacion`, `catalogos.RevocacionPort`, `reportes.RevocacionPort` |
+| `bff → operacion` | `BFFOperacionEnProceso` | `bff.OperacionPort` |
+| `bff → identidad` | `BFFIdentidadEnProceso` | `bff.IdentidadPort` |
+
+**Scaffold / brechas conocidas:** los servicios de dominio de los módulos son
+scaffold, así que las llamadas síncronas devuelven "no implementado" en runtime;
+el cableado es correcto en forma y paridad (I3), pero esto **no es evidencia de
+G2** (DEC-049). La proyección de tombstones de `bff` (`bff.Deps.Revocacion`) va
+`nil`: su worker de `sesion.revocada` necesita el bus, en espera de ADR 32; el
+middleware verifica firma pero aún no consulta tombstones, así que la revocación
+no es efectiva end-to-end. `bff` solo cablea sus aristas de fase (a) (operacion,
+identidad); catalogos y reportes son fase (b) y no están en su `Deps` todavía.
+
+Este repo se completa de forma **incremental**: cada vez que un módulo cambia su
+superficie se actualiza `go.mod`, el cableado en `construirModulos`, su adaptador
+en proceso con pruebas, y esta tabla.
 
 ## Correr local
 
@@ -57,6 +70,7 @@ falten, no solo la primera):
 | `DB_OP_AUDITORIA_URL` | `op_auditoria` |
 | `DB_OP_ROSTER_URL` | `op_roster` |
 | `DB_SVC_REPORTES_URL` | `svc_reportes` |
+| `DB_SVC_IDENTIDAD_URL` | `svc_identidad` |
 
 En producción (sin tag), `core` usa el verificador JWT real y exige `JWKS_URL`:
 
@@ -64,7 +78,7 @@ En producción (sin tag), `core` usa el verificador JWT real y exige `JWKS_URL`:
 SERVICE_NAME=core HTTP_ADDR=:8080 JWKS_URL=https://idp.interno/.well-known/jwks.json \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
   DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
-  DB_SVC_REPORTES_URL=... \
+  DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \
   go run ./cmd/core
 ```
 
@@ -75,7 +89,7 @@ un IdP (las cadenas de BD siguen siendo obligatorias):
 SERVICE_NAME=core HTTP_ADDR=:8080 \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
   DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
-  DB_SVC_REPORTES_URL=... \
+  DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \
   go run -tags devauth ./cmd/core
 
 curl localhost:8080/health   # {"status":"ok"}

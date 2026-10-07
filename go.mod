@@ -12,6 +12,7 @@ require (
 	github.com/AI27-Tech/pf-pkg-platform-go v0.1.0
 	github.com/AI27-Tech/pf-svc-catalogos v0.1.0
 	github.com/AI27-Tech/pf-svc-operacion v0.1.1
+	github.com/AI27-Tech/pf-svc-reportes v0.1.0
 )
 
 require (

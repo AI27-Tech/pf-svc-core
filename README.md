@@ -18,17 +18,19 @@ de servidor y de workers. Si aparece lógica de dominio aquí, pertenece a
 |---|---|---|
 | catalogos | ✅ cableado (`v0.1.0`) | hoja del grafo; un pool `svc_catalogos` |
 | operacion | ✅ cableado (`v0.1.1`) | cinco pools (`op_viajes/asignacion/bitacora/auditoria/roster`, ADR 33); arista `operacion → catalogos` en proceso |
+| reportes | ✅ cableado (`v0.1.0`) | un pool `svc_reportes` (ADR 18); arista `reportes → catalogos` en proceso |
 | identidad | ❌ no cableado | en paralelo (DEC-049); mientras tanto, `devauth` |
 | bff | ❌ no cableado | — |
-| reportes | ❌ no cableado | — |
 
-`core` compone hoy **catalogos** (hoja) y **operacion**. La arista síncrona
-`operacion → catalogos` (puerto `AptitudRecursos`) se resuelve con el adaptador
-**en proceso** de `internal/adapters/`, que respeta el mismo presupuesto de
-tiempo (`operacion.PresupuestoAptitud`), la misma taxonomía de error y la
-cancelación que el adaptador HTTP de `pf-svc-operacion` (I3); sus pruebas de
-paridad viven junto al adaptador. El adaptador HTTP del mismo puerto **no** se
-cablea aquí porque catalogos está co-ubicado.
+`core` compone hoy **catalogos** (hoja), **operacion** y **reportes**. Las
+aristas síncronas co-ubicadas `operacion → catalogos` (puerto `AptitudRecursos`)
+y `reportes → catalogos` (puerto `CatalogosPort`) se resuelven con adaptadores
+**en proceso** de `internal/adapters/`, cada uno respetando el presupuesto de
+tiempo que su consumidor exporta (`operacion.PresupuestoAptitud`,
+`reportes.PresupuestoCatalogos`), la misma taxonomía de error y la cancelación
+que su adaptador HTTP (I3); sus pruebas de paridad viven junto a cada adaptador.
+Los adaptadores HTTP de esos puertos **no** se cablean aquí porque catalogos está
+co-ubicado.
 
 Los módulos aún no montan rutas de negocio (sus `Routes` son scaffold) ni
 declaran workers; `core` sirve `/health` y `/ready`, abre un pool por rol y los
@@ -54,6 +56,7 @@ falten, no solo la primera):
 | `DB_OP_BITACORA_URL` | `op_bitacora` |
 | `DB_OP_AUDITORIA_URL` | `op_auditoria` |
 | `DB_OP_ROSTER_URL` | `op_roster` |
+| `DB_SVC_REPORTES_URL` | `svc_reportes` |
 
 En producción (sin tag), `core` usa el verificador JWT real y exige `JWKS_URL`:
 
@@ -61,6 +64,7 @@ En producción (sin tag), `core` usa el verificador JWT real y exige `JWKS_URL`:
 SERVICE_NAME=core HTTP_ADDR=:8080 JWKS_URL=https://idp.interno/.well-known/jwks.json \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
   DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
+  DB_SVC_REPORTES_URL=... \
   go run ./cmd/core
 ```
 
@@ -71,6 +75,7 @@ un IdP (las cadenas de BD siguen siendo obligatorias):
 SERVICE_NAME=core HTTP_ADDR=:8080 \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
   DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
+  DB_SVC_REPORTES_URL=... \
   go run -tags devauth ./cmd/core
 
 curl localhost:8080/health   # {"status":"ok"}
@@ -110,12 +115,12 @@ resuelve en servidor (DEC-053).
 
 ## Pendientes y lo que espera a ADR 32
 
-- **Composición real:** catalogos (`v0.1.0`) y operacion (`v0.1.1`) ya están
-  cableados con sus pools y la arista en proceso `operacion → catalogos`. Sus
-  `Routes` y `Workers` siguen en scaffold (sin rutas de negocio ni workers), así
-  que todavía no hay outbox que relevar ni consumidores que arrancar; se cablean
-  cuando los módulos los implementen. Faltan por llegar `identidad`, `bff` y
-  `reportes` (DEC-049).
+- **Composición real:** catalogos (`v0.1.0`), operacion (`v0.1.1`) y reportes
+  (`v0.1.0`) ya están cableados con sus pools y las aristas en proceso a
+  catalogos. Sus `Routes` y `Workers` siguen en scaffold (sin rutas de negocio ni
+  workers), así que todavía no hay outbox que relevar ni consumidores que
+  arrancar; se cablean cuando los módulos los implementen. Faltan por llegar
+  `identidad` y `bff` (DEC-049).
 - **Adaptador real del broker V1** (para la outbox y los consumidores de
   `sesion.revocada`) e **IdP on-premise**: en espera de que ADR 32 elija
   componente (DEC-062). En desarrollo, `core` usará `bus/memory` de

@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026:10:05 (hora local) — reportes
+
+**Resumen:** Segundo incremento de composición (prompt 09): `core` suma `reportes` (`v0.1.0`) a catalogos y operacion, resolviendo la arista `reportes → catalogos` con un adaptador EN PROCESO y sus pruebas de paridad (I3).
+
+**Cambios:**
+- `go.mod`: se fija `pf-svc-reportes v0.1.0` (versión exacta).
+- `internal/adapters/reportes_catalogos.go` (nuevo): `ReportesCatalogosEnProceso`, adaptador en proceso del puerto `reportes.CatalogosPort` sobre `catalogos.Consultas()` (`ObtenerContrato`/`ObtenerSla`). Respeta `reportes.PresupuestoCatalogos` (leído del consumidor), la misma taxonomía de error (vencimiento/cancelación → Degradado; el resto se propaga sin recategorizar) y la cancelación.
+- `internal/adapters/reportes_catalogos_test.go` (nuevo): pruebas de paridad I3 (deadline impuesto, timeout → Degradado, cancelación, propagación de cada clase de error del contrato).
+- `cmd/core/main.go`: nuevo rol/pool `svc_reportes` en `rolesDeBD` y `abrirPools`; `construirModulos` construye `reportes.New(...)` con el adaptador en proceso. `config.Load` exige ahora siete cadenas de conexión por rol.
+- `internal/adapters/doc.go`, `README.md`: tabla de módulos (reportes ✅), variable `DB_SVC_REPORTES_URL`, pendientes (faltan identidad y bff).
+
+**Verificado:** gofmt limpio, `go vet ./...`, `go build ./...`, `go test ./...`, build+test `-tags devauth`, compuerta anti-stub, build `-mod=readonly`, arch-test OK (reportes ya requerido por la raíz de composición).
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`
+- `cmd/core/main.go`
+- `internal/adapters/reportes_catalogos.go` (nuevo)
+- `internal/adapters/reportes_catalogos_test.go` (nuevo)
+- `internal/adapters/doc.go`
+- `README.md`
+
 ## 2026:10:05 (hora local)
 
 **Resumen:** Primer incremento de composición real (prompt 09, DEC-049): `core` ya cablea `catalogos` (`v0.1.0`) y `operacion` (`v0.1.1`), resolviendo la arista `operacion → catalogos` con el adaptador EN PROCESO de `internal/adapters/` y sus pruebas de paridad (I3). Antes `core` arrancaba sin módulos.

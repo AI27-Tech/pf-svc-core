@@ -9,10 +9,9 @@
 // arista no declarada en arch-test/reglas.yaml, y no importa internal/ de otro
 // módulo (I1–I5).
 //
-// Estado incremental (DEC-049): hoy no hay ningún pf-svc-* publicado (catalogos
-// y operacion están vacíos), así que core arranca SIN módulos y solo sirve
-// /health y /ready. A medida que catalogos y operacion (y luego identidad, bff,
-// reportes) publiquen versión, se agregan a go.mod y se cablean aquí.
+// Estado incremental (DEC-049): hoy cablea los cinco módulos de core —identidad,
+// catalogos, operacion, reportes y bff— con sus pools y adaptadores en proceso.
+// El composition root está completo (arch-test exige exactamente esos cinco).
 //
 // La autenticación la provee construirAutenticador, definida en dos variantes
 // por build tag: el verificador JWT real (producción) o el stub devauth
@@ -26,14 +25,17 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
 	"github.com/AI27-Tech/pf-pkg-platform-go/config"
 	"github.com/AI27-Tech/pf-pkg-platform-go/observability"
 	"github.com/AI27-Tech/pf-pkg-platform-go/pgxpool"
 	"github.com/AI27-Tech/pf-pkg-platform-go/server"
 	"github.com/AI27-Tech/pf-pkg-platform-go/worker"
 
+	bff "github.com/AI27-Tech/pf-svc-bff"
 	catalogos "github.com/AI27-Tech/pf-svc-catalogos"
 	"github.com/AI27-Tech/pf-svc-core/internal/adapters"
+	identidad "github.com/AI27-Tech/pf-svc-identidad"
 	operacion "github.com/AI27-Tech/pf-svc-operacion"
 	reportes "github.com/AI27-Tech/pf-svc-reportes"
 )
@@ -50,6 +52,7 @@ const (
 	envDBOpAuditoria  = "DB_OP_AUDITORIA_URL"
 	envDBOpRoster     = "DB_OP_ROSTER_URL"
 	envDBReportes     = "DB_SVC_REPORTES_URL"
+	envDBIdentidad    = "DB_SVC_IDENTIDAD_URL"
 )
 
 // rolesDeBD asocia cada clave de entorno a su rol de BD. Es la fuente única de
@@ -64,6 +67,7 @@ var rolesDeBD = []struct {
 	{envDBOpAuditoria, "op_auditoria"},
 	{envDBOpRoster, "op_roster"},
 	{envDBReportes, "svc_reportes"},
+	{envDBIdentidad, "svc_identidad"},
 }
 
 // module es la superficie pública que cada pf-svc-* expone a la raíz (00-indice
@@ -130,25 +134,31 @@ func run() error {
 	}
 	defer cerrarPools()
 
-	// 6. Cablear los módulos que existan con sus pools y adaptadores en proceso.
-	//    Hoy: catalogos + operacion (DEC-049; identidad, bff, reportes llegan
-	//    después). El autenticador se construye arriba para fallar temprano; su
-	//    middleware se aplicará a las rutas protegidas cuando los handlers de
-	//    negocio existan.
-	_ = autenticador
-	modules, err := construirModulos(pls, logger)
+	// 6. Cablear los cinco módulos de core con sus pools y adaptadores en
+	//    proceso. identidad se devuelve por separado porque su Routes pide el
+	//    verificador y la revocación (firma distinta de la interfaz module); el
+	//    resto monta por la interfaz común. El autenticador (real o stub devauth)
+	//    se inyecta en bff.Deps.Verificador y en las rutas protegidas de identidad.
+	modules, idn, err := construirModulos(pls, autenticador, logger)
 	if err != nil {
 		return err
 	}
 	for _, m := range modules {
 		m.Routes(srv.Mux())
 	}
+	// identidad monta sus rutas con el verificador y la proyección de revocación.
+	// Sin worker de sesion.revocada cableado (bus en espera de ADR 32), la
+	// revocación va nil: el middleware verifica firma pero no consulta tombstones.
+	idn.Routes(srv.Mux(), autenticador, nil)
 
 	// 7. Arrancar los workers que cada módulo declare, y drenarlos al apagar.
+	//    identidad aporta su relay de outbox; entra en la recolección aunque su
+	//    Routes vaya aparte.
 	var workers []worker.Worker
 	for _, m := range modules {
 		workers = append(workers, m.Workers()...)
 	}
+	workers = append(workers, idn.Workers()...)
 
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
@@ -176,6 +186,7 @@ type pools struct {
 	opAuditoria  *pgxpool.Pool
 	opRoster     *pgxpool.Pool
 	reportes     *pgxpool.Pool
+	identidad    *pgxpool.Pool
 }
 
 // abrirPools abre un pool por cada rol declarado en rolesDeBD, lo registra en la
@@ -207,6 +218,7 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 		opAuditoria:  abiertos["op_auditoria"],
 		opRoster:     abiertos["op_roster"],
 		reportes:     abiertos["svc_reportes"],
+		identidad:    abiertos["svc_identidad"],
 	}, cerrar, nil
 }
 
@@ -224,16 +236,30 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 // TODO(core): aplicar las migraciones que cada módulo exporte (migrations.FS)
 // con el rol dueño de cada esquema antes de servir tráfico. Pendiente del
 // aplicador de migraciones acordado; hoy el scaffold no monta rutas de negocio.
-func construirModulos(p pools, logger *slog.Logger) ([]module, error) {
-	// catalogos: hoja del grafo, un pool/rol. Sin arista de dominio saliente
-	// (la restringida a identidad se cablea cuando identidad exista).
-	cat, err := catalogos.New(catalogos.Pools{Catalogos: p.catalogos}, catalogos.Deps{})
+func construirModulos(p pools, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
+	// identidad: hoja del grafo, un pool/rol (svc_identidad). Es destino de las
+	// aristas de revocación (operacion/catalogos/reportes) y de la de sesión
+	// (bff), así que se construye primero. BusPublisher e IDP son adaptadores en
+	// espera de ADR 32; en el scaffold el módulo se construye con el bus/IdP que
+	// la raíz inyecte (hoy nil: el relay de outbox no drena sin bus, y la lógica
+	// de sesión es scaffold).
+	idn, err = identidad.New(identidad.Pools{Identidad: p.identidad}, identidad.Deps{})
 	if err != nil {
-		return nil, fmt.Errorf("construir catalogos: %w", err)
+		return nil, nil, fmt.Errorf("construir identidad: %w", err)
+	}
+
+	// catalogos: hoja del grafo, un pool/rol. Su única arista saliente es la
+	// restringida a identidad para revocación (DEC-051), resuelta en proceso.
+	cat, err := catalogos.New(catalogos.Pools{Catalogos: p.catalogos}, catalogos.Deps{
+		Revocacion: adapters.NewRevocacionCatalogos(idn.Consultas()),
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("construir catalogos: %w", err)
 	}
 
 	// operacion: cinco pools, uno por rol/esquema (ADR 33). La arista a
-	// catalogos se resuelve con el adaptador en proceso sobre cat.Consultas().
+	// catalogos se resuelve con el adaptador en proceso sobre cat.Consultas();
+	// la restringida a identidad para revocación, con el adaptador de revocación.
 	op, err := operacion.New(operacion.Pools{
 		Viajes:     p.opViajes,
 		Asignacion: p.opAsignacion,
@@ -241,23 +267,41 @@ func construirModulos(p pools, logger *slog.Logger) ([]module, error) {
 		Auditoria:  p.opAuditoria,
 		Roster:     p.opRoster,
 	}, operacion.Deps{
-		Aptitud: adapters.NewAptitudRecursos(cat.Consultas()),
-		// Revocacion: se cablea cuando identidad exista (DEC-051).
+		Aptitud:    adapters.NewAptitudRecursos(cat.Consultas()),
+		Revocacion: adapters.NewRevocacionOperacion(idn.Consultas()),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("construir operacion: %w", err)
+		return nil, nil, fmt.Errorf("construir operacion: %w", err)
 	}
 
-	// reportes: un pool/rol (svc_reportes, ADR 18). La arista a catalogos
-	// (dimensiones) se resuelve con el adaptador en proceso sobre cat.Consultas().
+	// reportes: un pool/rol (svc_reportes, ADR 18). Arista a catalogos
+	// (dimensiones) y la restringida a identidad para revocación, ambas en proceso.
 	rep, err := reportes.New(reportes.Pools{Reportes: p.reportes}, reportes.Deps{
-		Catalogos: adapters.NewReportesCatalogos(cat.Consultas()),
-		// Revocacion: se cablea cuando identidad exista (DEC-051).
+		Catalogos:  adapters.NewReportesCatalogos(cat.Consultas()),
+		Revocacion: adapters.NewRevocacionReportes(idn.Consultas()),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("construir reportes: %w", err)
+		return nil, nil, fmt.Errorf("construir reportes: %w", err)
 	}
 
-	logger.Info("módulos cableados: catalogos + operacion + reportes (aristas a catalogos en proceso)")
-	return []module{cat, op, rep}, nil
+	// bff: sin pool (no es dueño de datos). Aristas en proceso a operacion e
+	// identidad (fase a); catalogos y reportes son fase (b) y no están en su
+	// Deps todavía. El verificador JWT es el autenticador real o el stub devauth,
+	// según el build tag. La proyección de tombstones (Revocacion) la alimentaría
+	// el worker de sesion.revocada; sin bus (ADR 32) va nil: el middleware no
+	// consulta tombstones y la revocación aún no es efectiva end-to-end (scaffold).
+	front, err := bff.New(bff.Pools{}, bff.Deps{
+		Operacion:   adapters.NewBFFOperacion(op.Consultas()),
+		Identidad:   adapters.NewBFFIdentidad(idn.Consultas()),
+		Verificador: autenticador,
+		Revocacion:  nil,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("construir bff: %w", err)
+	}
+
+	logger.Info("módulos cableados: identidad + catalogos + operacion + reportes + bff (aristas co-ubicadas en proceso)")
+	// identidad va por separado: su Routes pide verificador y revocación (firma
+	// distinta de la interfaz module). Entra igual en la recolección de Workers.
+	return []module{cat, op, rep, front}, idn, nil
 }

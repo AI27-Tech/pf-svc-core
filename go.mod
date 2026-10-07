@@ -4,15 +4,17 @@ go 1.27
 
 // Raíz de composición del deployable `core` (DEC-050). Requiere solo los
 // paquetes publicados y, de forma incremental, los pf-svc-* que ya existan con
-// versión publicada. Hoy no hay ningún pf-svc-* cableado: catalogos y operacion
-// todavía están vacíos (sin New() ni versión), así que core arranca sin módulos.
-// Sin replace a rutas locales ni go.work versionado (00 regla 7).
+// versión publicada. Hoy cablea catalogos, operacion, reportes, identidad y bff
+// (los cinco módulos de core). Sin replace a rutas locales ni go.work versionado
+// (00 regla 7).
 require (
 	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.3
-	github.com/AI27-Tech/pf-pkg-platform-go v0.1.0
-	github.com/AI27-Tech/pf-svc-catalogos v0.1.0
-	github.com/AI27-Tech/pf-svc-operacion v0.1.1
-	github.com/AI27-Tech/pf-svc-reportes v0.1.0
+	github.com/AI27-Tech/pf-pkg-platform-go v0.1.1
+	github.com/AI27-Tech/pf-svc-bff v0.1.0
+	github.com/AI27-Tech/pf-svc-catalogos v0.1.1
+	github.com/AI27-Tech/pf-svc-identidad v0.1.1
+	github.com/AI27-Tech/pf-svc-operacion v0.1.3
+	github.com/AI27-Tech/pf-svc-reportes v0.1.1
 )
 
 require (

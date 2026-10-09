@@ -142,11 +142,11 @@ func run() error {
 	}
 	defer cerrarPools()
 
-	// 5b. Bus de eventos (ADR 29/32): abre la conexión al broker y construye el
-	//     Publisher que el relay de outbox de identidad usa para drenar
-	//     `sesion.revocada`. Falla al arrancar si NATS no responde: el bus es
-	//     parte del camino de datos, igual que los pools.
-	busPublisher, cerrarBus, err := abrirBus(os.Getenv(envNATSURL))
+	// 5b. Bus de eventos (ADR 29/32): abre la conexión al broker y construye los
+	//     puertos que la raíz reparte (Publisher durable para el outbox de
+	//     identidad, Broadcaster para la difusión de revocación). Falla al
+	//     arrancar si NATS no responde: el bus es parte del camino de datos.
+	bc, cerrarBus, err := abrirBus(os.Getenv(envNATSURL))
 	if err != nil {
 		return err
 	}
@@ -157,27 +157,42 @@ func run() error {
 	//    verificador y la revocación (firma distinta de la interfaz module); el
 	//    resto monta por la interfaz común. El autenticador (real o stub devauth)
 	//    se inyecta en bff.Deps.Verificador y en las rutas protegidas de identidad.
-	modules, idn, err := construirModulos(pls, busPublisher, autenticador, logger)
+	//    bff recibe el Broadcaster y construye internamente su proyección de
+	//    tombstones y su consumidor de sesion.revocada (bff v0.1.3).
+	modules, idn, err := construirModulos(pls, bc.durable, bc.conexion, autenticador, logger)
 	if err != nil {
 		return err
 	}
 	for _, m := range modules {
 		m.Routes(srv.Mux())
 	}
-	// identidad monta sus rutas con el verificador. La proyección de revocación
-	// (consulta de tombstones en bff) es la fase siguiente: aquí el relay de
-	// identidad ya publica `sesion.revocada` al bus real, pero el consumidor que
-	// alimenta la proyección de bff todavía no se cablea, así que va nil.
+	// identidad monta sus rutas con el verificador. La revocación en SUS rutas
+	// (consultar su propia proyección) es alcance aparte; aquí va nil. La
+	// revocación efectiva end-to-end que este cableado cierra es la de bff.
 	idn.Routes(srv.Mux(), autenticador, nil)
 
-	// 7. Arrancar los workers que cada módulo declare, y drenarlos al apagar.
-	//    identidad aporta su relay de outbox; entra en la recolección aunque su
-	//    Routes vaya aparte.
+	// 7. Arrancar los workers que cada módulo declare, más los del bus de la
+	//    raíz, y drenarlos al apagar. identidad aporta su relay de outbox; bff
+	//    aporta su consumidor de sesion.revocada (con reconstrucción por snapshot).
 	var workers []worker.Worker
 	for _, m := range modules {
 		workers = append(workers, m.Workers()...)
 	}
 	workers = append(workers, idn.Workers()...)
+
+	// Workers del bus en la raíz (ADR 29 §3): el reemisor convierte el evento
+	// durable sesion.revocada en difusión a todas las réplicas; el heartbeat
+	// mantiene viva la señal de frescura del canal. Nota de despliegue: con N
+	// réplicas de core corren N reemisores y N heartbeats. Es deliberado y seguro
+	// para V1: el consumidor deduplica por sesion_id (reemisión repetida es
+	// inocua) y varios latidos solo refrescan la misma señal. La elección de
+	// líder queda para cuando haya evidencia de que hace falta.
+	reemisor, err := busnats.NuevoReemisor(bc.durable, bc.conexion, "reemisor-broadcast", bus.SensibilidadAmplia, []string{"sesion.revocada"})
+	if err != nil {
+		return fmt.Errorf("construir reemisor de revocación: %w", err)
+	}
+	workers = append(workers, reemisor)
+	workers = append(workers, busnats.NuevoEmisorHeartbeat(bc.conexion, 0)) // 0 = intervalo por defecto (5s)
 
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
@@ -241,24 +256,33 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 	}, cerrar, nil
 }
 
-// abrirBus conecta al broker de eventos y construye el bus.Publisher que el
-// relay de outbox usa para drenar sus eventos. El Registry sale del registro
-// contractual de tipos (busregistry.Nuevo, DEC-050): el bus valida tipo/versión
-// y deriva la clave de orden sin conocer nombres de evento. Falla al arrancar
-// si NATS no responde (el bus es parte del camino de datos). Devuelve un cierre
-// que drena y cierra la conexión al apagar.
-func abrirBus(natsURL string) (bus.Publisher, func(), error) {
+// bus agrupa los puertos del bus que la raíz cablea desde una sola conexión
+// NATS. Guarda los tipos concretos porque el reemisor necesita el *Durable (se
+// suscribe al stream) y el heartbeat necesita el Broadcaster (la *Conexion lo
+// es). El Publisher durable lo usa el relay de outbox de identidad.
+type busCableado struct {
+	conexion *busnats.Conexion // Broadcaster: difusión de sesion.revocada (ADR 26 §3)
+	durable  *busnats.Durable  // Publisher durable (outbox) + base del reemisor
+}
+
+// abrirBus conecta al broker de eventos y construye los puertos del bus que la
+// raíz reparte. El Registry sale del registro contractual de tipos
+// (busregistry.Nuevo, DEC-050): el bus valida tipo/versión y deriva la clave de
+// orden sin conocer nombres de evento. Falla al arrancar si NATS no responde (el
+// bus es parte del camino de datos). Devuelve un cierre que drena y cierra la
+// conexión al apagar.
+func abrirBus(natsURL string) (busCableado, func(), error) {
 	conexion, err := busnats.Conectar(natsURL)
 	if err != nil {
-		return nil, func() {}, fmt.Errorf("conectar al bus: %w", err)
+		return busCableado{}, func() {}, fmt.Errorf("conectar al bus: %w", err)
 	}
 	durable, err := busnats.Nuevo(conexion, busregistry.Nuevo(), busnats.OpcionesDurable{})
 	if err != nil {
 		_ = conexion.Cerrar()
-		return nil, func() {}, fmt.Errorf("construir bus durable: %w", err)
+		return busCableado{}, func() {}, fmt.Errorf("construir bus durable: %w", err)
 	}
 	cerrar := func() { _ = conexion.Cerrar() }
-	return durable, cerrar, nil
+	return busCableado{conexion: conexion, durable: durable}, cerrar, nil
 }
 
 // construirModulos construye y devuelve los módulos de `core` que existan hoy.
@@ -275,7 +299,7 @@ func abrirBus(natsURL string) (bus.Publisher, func(), error) {
 // TODO(core): aplicar las migraciones que cada módulo exporte (migrations.FS)
 // con el rol dueño de cada esquema antes de servir tráfico. Pendiente del
 // aplicador de migraciones acordado; hoy el scaffold no monta rutas de negocio.
-func construirModulos(p pools, busPublisher bus.Publisher, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
+func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broadcaster, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
 	// identidad: hoja del grafo, un pool/rol (svc_identidad). Es destino de las
 	// aristas de revocación (operacion/catalogos/reportes) y de la de sesión
 	// (bff), así que se construye primero. Su relay de outbox drena
@@ -325,16 +349,16 @@ func construirModulos(p pools, busPublisher bus.Publisher, autenticador auth.Aut
 	}
 
 	// bff: sin pool (no es dueño de datos). Aristas en proceso a operacion e
-	// identidad (fase a); catalogos y reportes son fase (b) y no están en su
-	// Deps todavía. El verificador JWT es el autenticador real o el stub devauth,
-	// según el build tag. La proyección de tombstones (Revocacion) la alimentaría
-	// el worker de sesion.revocada; sin bus (ADR 32) va nil: el middleware no
-	// consulta tombstones y la revocación aún no es efectiva end-to-end (scaffold).
+	// identidad (fase a). El verificador JWT es el autenticador real o el stub
+	// devauth. Recibe el Broadcaster: bff construye internamente su proyección de
+	// tombstones, el consumidor de sesion.revocada que la alimenta, la frescura,
+	// el fallback a identidad y la reconstrucción por snapshot (bff v0.1.3). Con
+	// esto la revocación es efectiva end-to-end.
 	front, err := bff.New(bff.Pools{}, bff.Deps{
 		Operacion:   adapters.NewBFFOperacion(op.Consultas()),
 		Identidad:   adapters.NewBFFIdentidad(idn.Consultas()),
 		Verificador: autenticador,
-		Revocacion:  nil,
+		Broadcaster: broadcaster,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir bff: %w", err)

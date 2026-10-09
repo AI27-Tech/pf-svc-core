@@ -20,15 +20,18 @@ func urlNATS() string {
 	return "nats://127.0.0.1:4222"
 }
 
-// TestAbrirBusConectaYCierra: con NATS vivo, abrirBus devuelve un Publisher
-// usable y un cierre que no entra en pánico.
+// TestAbrirBusConectaYCierra: con NATS vivo, abrirBus devuelve los puertos del
+// bus usables (Publisher durable y Broadcaster) y un cierre que no entra en pánico.
 func TestAbrirBusConectaYCierra(t *testing.T) {
-	pub, cerrar, err := abrirBus(urlNATS())
+	bc, cerrar, err := abrirBus(urlNATS())
 	if err != nil {
 		t.Fatalf("abrirBus con NATS vivo devolvió error: %v", err)
 	}
-	if pub == nil {
-		t.Fatal("abrirBus devolvió un Publisher nil")
+	if bc.durable == nil {
+		t.Error("abrirBus devolvió un Publisher durable nil")
+	}
+	if bc.conexion == nil {
+		t.Error("abrirBus devolvió una Conexion (Broadcaster) nil")
 	}
 	cerrar()
 }

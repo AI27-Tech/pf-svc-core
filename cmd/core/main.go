@@ -26,6 +26,8 @@ import (
 	"os"
 
 	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
+	"github.com/AI27-Tech/pf-pkg-platform-go/bus"
+	busnats "github.com/AI27-Tech/pf-pkg-platform-go/bus/nats"
 	"github.com/AI27-Tech/pf-pkg-platform-go/config"
 	"github.com/AI27-Tech/pf-pkg-platform-go/observability"
 	"github.com/AI27-Tech/pf-pkg-platform-go/pgxpool"
@@ -35,6 +37,7 @@ import (
 	bff "github.com/AI27-Tech/pf-svc-bff"
 	catalogos "github.com/AI27-Tech/pf-svc-catalogos"
 	"github.com/AI27-Tech/pf-svc-core/internal/adapters"
+	"github.com/AI27-Tech/pf-svc-core/internal/busregistry"
 	identidad "github.com/AI27-Tech/pf-svc-identidad"
 	operacion "github.com/AI27-Tech/pf-svc-operacion"
 	reportes "github.com/AI27-Tech/pf-svc-reportes"
@@ -53,6 +56,10 @@ const (
 	envDBOpRoster     = "DB_OP_ROSTER_URL"
 	envDBReportes     = "DB_SVC_REPORTES_URL"
 	envDBIdentidad    = "DB_SVC_IDENTIDAD_URL"
+	// envNATSURL es la URL del broker de eventos (ADR 29/32). El bus es parte
+	// del camino de datos: core falla al arrancar si no responde, igual que con
+	// los pools (ver abrirBus).
+	envNATSURL = "NATS_URL"
 )
 
 // rolesDeBD asocia cada clave de entorno a su rol de BD. Es la fuente única de
@@ -92,10 +99,11 @@ func run() error {
 	// 1. Configuración (falla con todas las variables faltantes, no solo la
 	//    primera). Se exigen las cadenas de conexión por rol de los módulos
 	//    cableados (catalogos y operacion).
-	requeridas := make([]string, 0, len(rolesDeBD))
+	requeridas := make([]string, 0, len(rolesDeBD)+1)
 	for _, r := range rolesDeBD {
 		requeridas = append(requeridas, r.env)
 	}
+	requeridas = append(requeridas, envNATSURL)
 	cfg, err := config.Load(requeridas...)
 	if err != nil {
 		return err
@@ -134,21 +142,32 @@ func run() error {
 	}
 	defer cerrarPools()
 
+	// 5b. Bus de eventos (ADR 29/32): abre la conexión al broker y construye el
+	//     Publisher que el relay de outbox de identidad usa para drenar
+	//     `sesion.revocada`. Falla al arrancar si NATS no responde: el bus es
+	//     parte del camino de datos, igual que los pools.
+	busPublisher, cerrarBus, err := abrirBus(os.Getenv(envNATSURL))
+	if err != nil {
+		return err
+	}
+	defer cerrarBus()
+
 	// 6. Cablear los cinco módulos de core con sus pools y adaptadores en
 	//    proceso. identidad se devuelve por separado porque su Routes pide el
 	//    verificador y la revocación (firma distinta de la interfaz module); el
 	//    resto monta por la interfaz común. El autenticador (real o stub devauth)
 	//    se inyecta en bff.Deps.Verificador y en las rutas protegidas de identidad.
-	modules, idn, err := construirModulos(pls, autenticador, logger)
+	modules, idn, err := construirModulos(pls, busPublisher, autenticador, logger)
 	if err != nil {
 		return err
 	}
 	for _, m := range modules {
 		m.Routes(srv.Mux())
 	}
-	// identidad monta sus rutas con el verificador y la proyección de revocación.
-	// Sin worker de sesion.revocada cableado (bus en espera de ADR 32), la
-	// revocación va nil: el middleware verifica firma pero no consulta tombstones.
+	// identidad monta sus rutas con el verificador. La proyección de revocación
+	// (consulta de tombstones en bff) es la fase siguiente: aquí el relay de
+	// identidad ya publica `sesion.revocada` al bus real, pero el consumidor que
+	// alimenta la proyección de bff todavía no se cablea, así que va nil.
 	idn.Routes(srv.Mux(), autenticador, nil)
 
 	// 7. Arrancar los workers que cada módulo declare, y drenarlos al apagar.
@@ -222,6 +241,26 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 	}, cerrar, nil
 }
 
+// abrirBus conecta al broker de eventos y construye el bus.Publisher que el
+// relay de outbox usa para drenar sus eventos. El Registry sale del registro
+// contractual de tipos (busregistry.Nuevo, DEC-050): el bus valida tipo/versión
+// y deriva la clave de orden sin conocer nombres de evento. Falla al arrancar
+// si NATS no responde (el bus es parte del camino de datos). Devuelve un cierre
+// que drena y cierra la conexión al apagar.
+func abrirBus(natsURL string) (bus.Publisher, func(), error) {
+	conexion, err := busnats.Conectar(natsURL)
+	if err != nil {
+		return nil, func() {}, fmt.Errorf("conectar al bus: %w", err)
+	}
+	durable, err := busnats.Nuevo(conexion, busregistry.Nuevo(), busnats.OpcionesDurable{})
+	if err != nil {
+		_ = conexion.Cerrar()
+		return nil, func() {}, fmt.Errorf("construir bus durable: %w", err)
+	}
+	cerrar := func() { _ = conexion.Cerrar() }
+	return durable, cerrar, nil
+}
+
 // construirModulos construye y devuelve los módulos de `core` que existan hoy.
 // Es el único punto que cambia en cada incremento (DEC-049): al publicar un
 // módulo, se agrega su New(...) aquí con sus pools y adaptadores en proceso.
@@ -236,14 +275,15 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 // TODO(core): aplicar las migraciones que cada módulo exporte (migrations.FS)
 // con el rol dueño de cada esquema antes de servir tráfico. Pendiente del
 // aplicador de migraciones acordado; hoy el scaffold no monta rutas de negocio.
-func construirModulos(p pools, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
+func construirModulos(p pools, busPublisher bus.Publisher, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
 	// identidad: hoja del grafo, un pool/rol (svc_identidad). Es destino de las
 	// aristas de revocación (operacion/catalogos/reportes) y de la de sesión
-	// (bff), así que se construye primero. BusPublisher e IDP son adaptadores en
-	// espera de ADR 32; en el scaffold el módulo se construye con el bus/IdP que
-	// la raíz inyecte (hoy nil: el relay de outbox no drena sin bus, y la lógica
-	// de sesión es scaffold).
-	idn, err = identidad.New(identidad.Pools{Identidad: p.identidad}, identidad.Deps{})
+	// (bff), así que se construye primero. Su relay de outbox drena
+	// `sesion.revocada` al bus real (ADR 29/32) por BusPublisher; IDP sigue como
+	// doble en espera del adaptador del IdP on-premise (ADR 32).
+	idn, err = identidad.New(identidad.Pools{Identidad: p.identidad}, identidad.Deps{
+		BusPublisher: busPublisher,
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir identidad: %w", err)
 	}

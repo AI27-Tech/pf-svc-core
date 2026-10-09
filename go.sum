@@ -1,9 +1,9 @@
-github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.3 h1:4q/d3kvvlZfjEQ8vIFApfE2PqbkihQaWIW5U6Mo7lLo=
-github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.3/go.mod h1:JlGX2WLFfC1+gxIhO+I47U002vqxhrjgCKXZZ4+wmY8=
-github.com/AI27-Tech/pf-pkg-platform-go v0.1.1 h1:FOzW+Q/unw3Z1Sb6xelHs63OJLiAb92DY4gN7MbzbfE=
-github.com/AI27-Tech/pf-pkg-platform-go v0.1.1/go.mod h1:/8N1KhHZMQhXy/+fA3HJXgSuKJHrohMe0+LGi2FjJPI=
-github.com/AI27-Tech/pf-svc-bff v0.1.0 h1:h380PDKEx0Zy4TPmKuZ+z9n2Ao4wNJwzNueT+QctmV0=
-github.com/AI27-Tech/pf-svc-bff v0.1.0/go.mod h1:RcS8W8kzaOv/cgay+hBhLbHoOtfpwB3+v6pH1Vn6kGk=
+github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.4 h1:B7EUoXhyZVH8kX6NObsNfRNoB5lBvgkkfiRLiTC9GkY=
+github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.4/go.mod h1:JlGX2WLFfC1+gxIhO+I47U002vqxhrjgCKXZZ4+wmY8=
+github.com/AI27-Tech/pf-pkg-platform-go v0.1.2 h1:6HUWLX8C7KmzNO4Ez6YOqisrGr+QIMvf7XYmlYqvoiA=
+github.com/AI27-Tech/pf-pkg-platform-go v0.1.2/go.mod h1:/8N1KhHZMQhXy/+fA3HJXgSuKJHrohMe0+LGi2FjJPI=
+github.com/AI27-Tech/pf-svc-bff v0.1.1 h1:nay7bulTl1hSKR1gYJ+Jr8kkTbZVyQ2CsCsrZl5L4v4=
+github.com/AI27-Tech/pf-svc-bff v0.1.1/go.mod h1:A5OEWLyErY6UYqulACVhIvDpJMDDptLYtlbK1CFDZA8=
 github.com/AI27-Tech/pf-svc-catalogos v0.1.1 h1:oKr1YkftFdYoyQXHTpf4ajXDJybmF/wgc8/sIJ0GBDs=
 github.com/AI27-Tech/pf-svc-catalogos v0.1.1/go.mod h1:2bYy29/KlQXTy0sV1Fs0wApGDkZZPfE/GOPaot6f3ow=
 github.com/AI27-Tech/pf-svc-identidad v0.1.1 h1:Fbtf89aYYedUhaXDgt/7hwkXr6E102OpLaRnoyTBLr0=

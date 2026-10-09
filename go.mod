@@ -8,9 +8,9 @@ go 1.27
 // (los cinco módulos de core). Sin replace a rutas locales ni go.work versionado
 // (00 regla 7).
 require (
-	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.3
-	github.com/AI27-Tech/pf-pkg-platform-go v0.1.1
-	github.com/AI27-Tech/pf-svc-bff v0.1.0
+	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.4
+	github.com/AI27-Tech/pf-pkg-platform-go v0.1.2
+	github.com/AI27-Tech/pf-svc-bff v0.1.1
 	github.com/AI27-Tech/pf-svc-catalogos v0.1.1
 	github.com/AI27-Tech/pf-svc-identidad v0.1.1
 	github.com/AI27-Tech/pf-svc-operacion v0.1.3

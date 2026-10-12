@@ -41,26 +41,28 @@ func NewAptitudRecursos(consultas catalogos.ConsultasAPI) *AptitudRecursosEnProc
 	return &AptitudRecursosEnProceso{consultas: consultas}
 }
 
-// AptitudUnidad consulta la aptitud informativa de una unidad-átomo (DEC-055),
-// con el mismo presupuesto de tiempo que el adaptador HTTP.
-func (a *AptitudRecursosEnProceso) AptitudUnidad(ctx context.Context, unidadID catclient.Id) (*catclient.Aptitud, error) {
+// AptitudVehiculo consulta la aptitud informativa de un vehículo-átomo (DEC-055),
+// evaluada contra el contrato/SLA del cliente (tracer.4), con el mismo
+// presupuesto de tiempo que el adaptador HTTP.
+func (a *AptitudRecursosEnProceso) AptitudVehiculo(ctx context.Context, vehiculoID, clienteID catclient.Id) (*catclient.Aptitud, error) {
 	ctx, cancel := context.WithTimeout(ctx, operacion.PresupuestoAptitud)
 	defer cancel()
 
-	apt, err := a.consultas.AptitudUnidad(ctx, unidadID)
+	apt, err := a.consultas.AptitudVehiculo(ctx, vehiculoID, clienteID)
 	if err != nil {
-		return nil, traducirError(ctx, "AptitudUnidad", err)
+		return nil, traducirError(ctx, "AptitudVehiculo", err)
 	}
 	return apt, nil
 }
 
-// AptitudCustodio consulta la aptitud informativa de un custodio (DEC-055), con
-// el mismo presupuesto de tiempo que el adaptador HTTP.
-func (a *AptitudRecursosEnProceso) AptitudCustodio(ctx context.Context, custodioID catclient.Id) (*catclient.Aptitud, error) {
+// AptitudCustodio consulta la aptitud informativa de un custodio (DEC-055),
+// evaluada contra el contrato/SLA del cliente (tracer.4), con el mismo
+// presupuesto de tiempo que el adaptador HTTP.
+func (a *AptitudRecursosEnProceso) AptitudCustodio(ctx context.Context, custodioID, clienteID catclient.Id) (*catclient.Aptitud, error) {
 	ctx, cancel := context.WithTimeout(ctx, operacion.PresupuestoAptitud)
 	defer cancel()
 
-	apt, err := a.consultas.AptitudCustodio(ctx, custodioID)
+	apt, err := a.consultas.AptitudCustodio(ctx, custodioID, clienteID)
 	if err != nil {
 		return nil, traducirError(ctx, "AptitudCustodio", err)
 	}

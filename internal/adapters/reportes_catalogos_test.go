@@ -55,11 +55,11 @@ func (f *catalogosDimFake) ObtenerCliente(context.Context, catclient.Id) (*catcl
 	panic("no debe invocarse en estas pruebas")
 }
 
-func (f *catalogosDimFake) AptitudCustodio(context.Context, catclient.Id) (*catclient.Aptitud, error) {
+func (f *catalogosDimFake) AptitudCustodio(context.Context, catclient.Id, catclient.Id) (*catclient.Aptitud, error) {
 	panic("no debe invocarse en estas pruebas")
 }
 
-func (f *catalogosDimFake) AptitudUnidad(context.Context, catclient.Id) (*catclient.Aptitud, error) {
+func (f *catalogosDimFake) AptitudVehiculo(context.Context, catclient.Id, catclient.Id) (*catclient.Aptitud, error) {
 	panic("no debe invocarse en estas pruebas")
 }
 

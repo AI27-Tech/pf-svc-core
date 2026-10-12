@@ -38,11 +38,11 @@ func (f *catalogosFake) responder(ctx context.Context) (*catclient.Aptitud, erro
 	return f.apt, f.err
 }
 
-func (f *catalogosFake) AptitudUnidad(ctx context.Context, _ catclient.Id) (*catclient.Aptitud, error) {
+func (f *catalogosFake) AptitudVehiculo(ctx context.Context, _, _ catclient.Id) (*catclient.Aptitud, error) {
 	return f.responder(ctx)
 }
 
-func (f *catalogosFake) AptitudCustodio(ctx context.Context, _ catclient.Id) (*catclient.Aptitud, error) {
+func (f *catalogosFake) AptitudCustodio(ctx context.Context, _, _ catclient.Id) (*catclient.Aptitud, error) {
 	return f.responder(ctx)
 }
 
@@ -65,7 +65,7 @@ func TestAdaptadorImponeElMismoPresupuesto(t *testing.T) {
 	fake := &catalogosFake{apt: &catclient.Aptitud{}}
 	ad := NewAptitudRecursos(fake)
 
-	if _, err := ad.AptitudUnidad(context.Background(), catclient.Id{}); err != nil {
+	if _, err := ad.AptitudVehiculo(context.Background(), catclient.Id{}, catclient.Id{}); err != nil {
 		t.Fatalf("no se esperaba error: %v", err)
 	}
 	dl, ok := fake.ctxVisto.Deadline()
@@ -87,7 +87,7 @@ func TestTimeoutSeTraduceADegradado(t *testing.T) {
 	fake := &catalogosFake{retardo: operacion.PresupuestoAptitud + 500*time.Millisecond}
 	ad := NewAptitudRecursos(fake)
 
-	_, err := ad.AptitudCustodio(context.Background(), catclient.Id{})
+	_, err := ad.AptitudCustodio(context.Background(), catclient.Id{}, catclient.Id{})
 	if err == nil {
 		t.Fatal("se esperaba error por timeout")
 	}
@@ -105,7 +105,7 @@ func TestCancelacionSePropaga(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // ya cancelado al entrar
 
-	_, err := ad.AptitudUnidad(ctx, catclient.Id{})
+	_, err := ad.AptitudVehiculo(ctx, catclient.Id{}, catclient.Id{})
 	if err == nil {
 		t.Fatal("se esperaba error por cancelación")
 	}
@@ -133,7 +133,7 @@ func TestErrorDeContratoSePropagaSinRecategorizar(t *testing.T) {
 			fake := &catalogosFake{err: c.err}
 			ad := NewAptitudRecursos(fake)
 
-			_, err := ad.AptitudUnidad(context.Background(), catclient.Id{})
+			_, err := ad.AptitudVehiculo(context.Background(), catclient.Id{}, catclient.Id{})
 			if err == nil {
 				t.Fatal("se esperaba error")
 			}

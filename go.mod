@@ -11,9 +11,9 @@ require (
 	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.4
 	github.com/AI27-Tech/pf-pkg-platform-go v0.1.5
 	github.com/AI27-Tech/pf-svc-bff v0.1.3
-	github.com/AI27-Tech/pf-svc-catalogos v0.1.1
+	github.com/AI27-Tech/pf-svc-catalogos v0.1.2
 	github.com/AI27-Tech/pf-svc-identidad v0.1.2
-	github.com/AI27-Tech/pf-svc-operacion v0.1.3
+	github.com/AI27-Tech/pf-svc-operacion v0.1.4
 	github.com/AI27-Tech/pf-svc-reportes v0.1.1
 )
 

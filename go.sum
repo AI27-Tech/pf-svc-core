@@ -8,8 +8,8 @@ github.com/AI27-Tech/pf-svc-catalogos v0.1.2 h1:Wj36Ak1+bs0vpsNb1NDADhsWPB1lUlBz
 github.com/AI27-Tech/pf-svc-catalogos v0.1.2/go.mod h1:aSqnEjh8J41fOoS3aL8ivJZTnGEt9fdyAIEu4kPT5ac=
 github.com/AI27-Tech/pf-svc-identidad v0.1.2 h1:VoYqkvTQ5JxksaZfc5TcpvEkaWAnsD4pFHqyNYLKkAE=
 github.com/AI27-Tech/pf-svc-identidad v0.1.2/go.mod h1:monfPG/25WVcnbErp8qeX7Hocz3B7UslZN2207I+oZo=
-github.com/AI27-Tech/pf-svc-operacion v0.1.5 h1:c7TUa6Kt9OXJQxVaB02ImuLpJOV2C2oRkcH9APttXkU=
-github.com/AI27-Tech/pf-svc-operacion v0.1.5/go.mod h1:ntdXMG9uDRlh3gw7jaJHkWAFR5zV//RwdUU9pmKXzcM=
+github.com/AI27-Tech/pf-svc-operacion v0.1.6 h1:F41Siw8JfoD5R4lM05ZSq5gO479bekFPng8YUTAJZ9E=
+github.com/AI27-Tech/pf-svc-operacion v0.1.6/go.mod h1:ntdXMG9uDRlh3gw7jaJHkWAFR5zV//RwdUU9pmKXzcM=
 github.com/AI27-Tech/pf-svc-reportes v0.1.1 h1:umjMC4HeEG+HVA9jrZ4Vm92pyTukox7JHWkPULQ0RWk=
 github.com/AI27-Tech/pf-svc-reportes v0.1.1/go.mod h1:TJXFJHuoTGai9jKmtwX9zsseSMoXnSgZhMTn7Q/XU44=
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=

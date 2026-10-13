@@ -331,9 +331,10 @@ func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broad
 		Auditoria:  p.opAuditoria,
 		Roster:     p.opRoster,
 	}, operacion.Deps{
-		Aptitud:     adapters.NewAptitudRecursos(cat.Consultas()),
-		Revocacion:  adapters.NewRevocacionOperacion(idn.Consultas()),
-		Verificador: autenticador,
+		Aptitud:      adapters.NewAptitudRecursos(cat.Consultas()),
+		Revocacion:   adapters.NewRevocacionOperacion(idn.Consultas()),
+		Verificador:  autenticador,
+		BusPublisher: busPublisher,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir operacion: %w", err)

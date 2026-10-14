@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
@@ -55,9 +56,9 @@ func nombresDeWorkers(t *testing.T, b *busmem.Bus, conSubscriber bool) []string 
 // TestReportesConsumeConSubscriber verifica el cableado del Paso 3 (E6-T1): con
 // un Subscriber inyectado, core construye reportes de modo que su consumidor
 // durable de proyecciones entra en la recolección de Workers; sin Subscriber,
-// reportes no aporta ese worker. Se afirma por diferencia para no acoplarse al
-// nombre que cada transporte da al worker (NATS: bus-durable:reportes; memoria:
-// reportes).
+// reportes no aporta ese worker. La aserción fuerte es la diferencia de conteo
+// de workers (1 con Subscriber, 0 sin él); el nombre se comprueba por substring
+// para no acoplarse al prefijo del transporte.
 func TestReportesConsumeConSubscriber(t *testing.T) {
 	busCon := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
 	busSin := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
@@ -69,18 +70,21 @@ func TestReportesConsumeConSubscriber(t *testing.T) {
 		t.Fatalf("con Subscriber se esperaba 1 worker más (el consumidor de reportes); con=%v sin=%v", con, sin)
 	}
 	// El worker nuevo es el consumidor durable de reportes, suscrito con
-	// durableName "reportes" (Paso 2). El memory.Bus lo nombra "reportes".
-	if !contiene(con, "reportes") {
+	// durableName "reportes" (Paso 2). Se busca por substring para no acoplarse al
+	// prefijo que cada transporte da al nombre (NATS y el bus en memoria usan
+	// "bus-durable:reportes"; una variante vieja del bus en memoria usaba solo
+	// "reportes"). La aserción fuerte es la diferencia de conteo de arriba.
+	if !contieneSubcadena(con, "reportes") {
 		t.Fatalf("no se encontró el consumidor de reportes entre %v", con)
 	}
-	if contiene(sin, "reportes") {
+	if contieneSubcadena(sin, "reportes") {
 		t.Fatalf("sin Subscriber, reportes no debía aportar un worker; sin=%v", sin)
 	}
 }
 
-func contiene(xs []string, want string) bool {
+func contieneSubcadena(xs []string, sub string) bool {
 	for _, x := range xs {
-		if x == want {
+		if strings.Contains(x, sub) {
 			return true
 		}
 	}

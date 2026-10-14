@@ -10,8 +10,8 @@ github.com/AI27-Tech/pf-svc-identidad v0.1.2 h1:VoYqkvTQ5JxksaZfc5TcpvEkaWAnsD4p
 github.com/AI27-Tech/pf-svc-identidad v0.1.2/go.mod h1:monfPG/25WVcnbErp8qeX7Hocz3B7UslZN2207I+oZo=
 github.com/AI27-Tech/pf-svc-operacion v0.1.6 h1:F41Siw8JfoD5R4lM05ZSq5gO479bekFPng8YUTAJZ9E=
 github.com/AI27-Tech/pf-svc-operacion v0.1.6/go.mod h1:ntdXMG9uDRlh3gw7jaJHkWAFR5zV//RwdUU9pmKXzcM=
-github.com/AI27-Tech/pf-svc-reportes v0.1.1 h1:umjMC4HeEG+HVA9jrZ4Vm92pyTukox7JHWkPULQ0RWk=
-github.com/AI27-Tech/pf-svc-reportes v0.1.1/go.mod h1:TJXFJHuoTGai9jKmtwX9zsseSMoXnSgZhMTn7Q/XU44=
+github.com/AI27-Tech/pf-svc-reportes v0.1.2 h1:389RYYtxLKZoRTS7gKhpuqDIUwHDG2nNLknmBkiITs4=
+github.com/AI27-Tech/pf-svc-reportes v0.1.2/go.mod h1:fonkDc0A7BuiPsgT/L74uHNP+m89SaBx4Q/SciFHR9k=
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=

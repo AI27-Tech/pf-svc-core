@@ -159,7 +159,7 @@ func run() error {
 	//    se inyecta en bff.Deps.Verificador y en las rutas protegidas de identidad.
 	//    bff recibe el Broadcaster y construye internamente su proyección de
 	//    tombstones y su consumidor de sesion.revocada (bff v0.1.3).
-	modules, idn, err := construirModulos(pls, bc.durable, bc.conexion, autenticador, logger)
+	modules, idn, err := construirModulos(pls, bc.durable, bc.durable, bc.conexion, autenticador, logger)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func abrirBus(natsURL string) (busCableado, func(), error) {
 // TODO(core): aplicar las migraciones que cada módulo exporte (migrations.FS)
 // con el rol dueño de cada esquema antes de servir tráfico. Pendiente del
 // aplicador de migraciones acordado; hoy el scaffold no monta rutas de negocio.
-func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broadcaster, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
+func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscriber, broadcaster bus.Broadcaster, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
 	// identidad: hoja del grafo, un pool/rol (svc_identidad). Es destino de las
 	// aristas de revocación (operacion/catalogos/reportes) y de la de sesión
 	// (bff), así que se construye primero. Su relay de outbox drena
@@ -343,9 +343,14 @@ func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broad
 
 	// reportes: un pool/rol (svc_reportes, ADR 18). Arista a catalogos
 	// (dimensiones) y la restringida a identidad para revocación, ambas en proceso.
+	// Recibe además el Subscriber durable del bus (bc.durable): con él, reportes
+	// construye el consumidor de proyecciones que consume viaje.* y puebla
+	// hecho_viaje/hecho_transicion (E6-T1). Sin Subscriber el módulo no abre el
+	// consumidor (arranque standalone sin bus).
 	rep, err := reportes.New(reportes.Pools{Reportes: p.reportes}, reportes.Deps{
 		Catalogos:  adapters.NewReportesCatalogos(cat.Consultas()),
 		Revocacion: adapters.NewRevocacionReportes(idn.Consultas()),
+		Subscriber: subscriber,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir reportes: %w", err)

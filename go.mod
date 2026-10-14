@@ -14,7 +14,7 @@ require (
 	github.com/AI27-Tech/pf-svc-catalogos v0.1.2
 	github.com/AI27-Tech/pf-svc-identidad v0.1.2
 	github.com/AI27-Tech/pf-svc-operacion v0.1.6
-	github.com/AI27-Tech/pf-svc-reportes v0.1.1
+	github.com/AI27-Tech/pf-svc-reportes v0.1.2
 )
 
 require (

@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026:10:15 (hora local) — operacion consume catalogo.actualizado (E5-T5)
+
+**Resumen:** core inyecta el Subscriber durable del bus a operacion, para que su consumidor de `catalogo.actualizado` (E5-T5) arranque como worker e invalide la caché en proceso de aptitud. Antes el camino quedaba cableado en operacion pero muerto: core lo construía sin Subscriber.
+
+**Cambios:**
+- `cmd/core/main.go`: el `operacion.Deps` recibe `Subscriber: subscriber` (el mismo `bc.durable` que ya se pasa a reportes). Con él, operacion envuelve su puerto Aptitud con la caché y abre el consumidor durable `operacion-catalogos`; aparece en readiness vía `RunGroup` como `worker:bus-durable:operacion-catalogos`. mensajeria NO se cablea aquí: vive en su propio deployable y su arista entrante (bff → mensajeria) es siempre HTTP.
+- `cmd/core/wiring_test.go`: nuevo `TestOperacionConsumeCatalogosConSubscriber` (con Subscriber, operacion aporta el worker de catálogos; sin él, no). Se ajusta `TestReportesConsumeConSubscriber`: la aserción pasa de "delta total de workers = 1" a presencia/ausencia por consumidor, porque ahora operacion también aporta un consumidor cuando hay Subscriber.
+
+**Nota de verificación:** build conjunto de core y wiring_test verdes con el bus en memoria. No se cambió `go.mod`: durante el desarrollo core se enlaza a la versión local de operacion (rama feature) vía `go.work` (de trabajo, no versionado, no se commitea). El bump de `pf-svc-operacion` a su versión publicada queda para cuando se libere.
+
 ## 2026:10:14 (hora local) — reportes consume el bus (E6-T1, Paso 3)
 
 **Resumen:** core inyecta el Subscriber durable del bus a reportes, para que su consumidor de proyecciones (E6-T1, Pasos 1-2) arranque como worker y reportes consuma `viaje.*` end-to-end. Antes el camino estaba cableado en reportes pero muerto: core lo construía sin bus. Con esto, un core desplegado contra NATS puebla `hecho_viaje`/`hecho_transicion` de reportes a partir de lo que publica operacion.

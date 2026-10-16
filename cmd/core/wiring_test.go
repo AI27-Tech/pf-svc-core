@@ -56,9 +56,14 @@ func nombresDeWorkers(t *testing.T, b *busmem.Bus, conSubscriber bool) []string 
 // TestReportesConsumeConSubscriber verifica el cableado del Paso 3 (E6-T1): con
 // un Subscriber inyectado, core construye reportes de modo que su consumidor
 // durable de proyecciones entra en la recolección de Workers; sin Subscriber,
-// reportes no aporta ese worker. La aserción fuerte es la diferencia de conteo
-// de workers (1 con Subscriber, 0 sin él); el nombre se comprueba por substring
-// para no acoplarse al prefijo del transporte.
+// reportes no aporta ese worker. El nombre se comprueba por substring para no
+// acoplarse al prefijo del transporte.
+//
+// NOTA: con la llegada de E5-T5, operacion también abre un consumidor durable
+// cuando hay Subscriber, así que el delta TOTAL de workers con/sin Subscriber ya
+// no es 1. Por eso la aserción es por consumidor (presencia/ausencia del de
+// reportes), no sobre el conteo total; el de operacion se cubre en
+// TestOperacionConsumeCatalogosConSubscriber.
 func TestReportesConsumeConSubscriber(t *testing.T) {
 	busCon := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
 	busSin := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
@@ -66,19 +71,36 @@ func TestReportesConsumeConSubscriber(t *testing.T) {
 	con := nombresDeWorkers(t, busCon, true)
 	sin := nombresDeWorkers(t, busSin, false)
 
-	if len(con)-len(sin) != 1 {
-		t.Fatalf("con Subscriber se esperaba 1 worker más (el consumidor de reportes); con=%v sin=%v", con, sin)
-	}
-	// El worker nuevo es el consumidor durable de reportes, suscrito con
-	// durableName "reportes" (Paso 2). Se busca por substring para no acoplarse al
-	// prefijo que cada transporte da al nombre (NATS y el bus en memoria usan
-	// "bus-durable:reportes"; una variante vieja del bus en memoria usaba solo
-	// "reportes"). La aserción fuerte es la diferencia de conteo de arriba.
+	// El worker del consumidor durable de reportes se suscribe con durableName
+	// "reportes" (Paso 2). Se busca por substring para no acoplarse al prefijo que
+	// cada transporte da al nombre (NATS y el bus en memoria usan
+	// "bus-durable:reportes"; una variante vieja usaba solo "reportes").
 	if !contieneSubcadena(con, "reportes") {
 		t.Fatalf("no se encontró el consumidor de reportes entre %v", con)
 	}
 	if contieneSubcadena(sin, "reportes") {
 		t.Fatalf("sin Subscriber, reportes no debía aportar un worker; sin=%v", sin)
+	}
+}
+
+// TestOperacionConsumeCatalogosConSubscriber verifica el cableado de E5-T5: con
+// un Subscriber inyectado, core construye operacion de modo que su consumidor
+// durable de catalogo.actualizado (que invalida la caché de aptitud) entra en la
+// recolección de Workers; sin Subscriber, operacion no aporta ese worker. Se
+// busca por substring ("operacion-catalogos") para no acoplarse al prefijo del
+// transporte ("bus-durable:operacion-catalogos").
+func TestOperacionConsumeCatalogosConSubscriber(t *testing.T) {
+	busCon := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
+	busSin := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
+
+	con := nombresDeWorkers(t, busCon, true)
+	sin := nombresDeWorkers(t, busSin, false)
+
+	if !contieneSubcadena(con, "operacion-catalogos") {
+		t.Fatalf("no se encontró el consumidor de catálogos de operacion entre %v", con)
+	}
+	if contieneSubcadena(sin, "operacion-catalogos") {
+		t.Fatalf("sin Subscriber, operacion no debía aportar el consumidor de catálogos; sin=%v", sin)
 	}
 }
 

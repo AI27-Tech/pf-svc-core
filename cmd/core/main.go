@@ -324,6 +324,10 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	// operacion: cinco pools, uno por rol/esquema (ADR 33). La arista a
 	// catalogos se resuelve con el adaptador en proceso sobre cat.Consultas();
 	// la restringida a identidad para revocación, con el adaptador de revocación.
+	// Recibe además el Subscriber durable del bus: con él, operacion envuelve su
+	// puerto Aptitud con la caché en proceso y abre el consumidor durable de
+	// catalogo.actualizado que la invalida (E5-T5). Sin Subscriber el módulo no
+	// cachea ni abre el consumidor (arranque standalone sin bus).
 	op, err := operacion.New(operacion.Pools{
 		Viajes:     p.opViajes,
 		Asignacion: p.opAsignacion,
@@ -336,6 +340,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 		Verificador:  autenticador,
 		BusPublisher: busPublisher,
 		Broadcaster:  broadcaster,
+		Subscriber:   subscriber,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir operacion: %w", err)

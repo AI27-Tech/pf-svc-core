@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026:10:15 (hora local) — operacion consume catalogo.actualizado (E5-T5)
+
+**Resumen:** core inyecta el Subscriber durable del bus a operacion, para que su consumidor de `catalogo.actualizado` (E5-T5) arranque como worker e invalide la caché en proceso de aptitud. Antes el camino quedaba cableado en operacion pero muerto: core lo construía sin Subscriber.
+
+**Cambios:**
+- `cmd/core/main.go`: el `operacion.Deps` recibe `Subscriber: subscriber` (el mismo `bc.durable` que ya se pasa a reportes). Con él, operacion envuelve su puerto Aptitud con la caché y abre el consumidor durable `operacion-catalogos`; aparece en readiness vía `RunGroup` como `worker:bus-durable:operacion-catalogos`. mensajeria NO se cablea aquí: vive en su propio deployable y su arista entrante (bff → mensajeria) es siempre HTTP.
+- `cmd/core/wiring_test.go`: nuevo `TestOperacionConsumeCatalogosConSubscriber` (con Subscriber, operacion aporta el worker de catálogos; sin él, no). Se ajusta `TestReportesConsumeConSubscriber`: la aserción pasa de "delta total de workers = 1" a presencia/ausencia por consumidor, porque ahora operacion también aporta un consumidor cuando hay Subscriber.
+
+**Nota de verificación:** build conjunto de core y wiring_test verdes con el bus en memoria. No se cambió `go.mod`: durante el desarrollo core se enlaza a la versión local de operacion (rama feature) vía `go.work` (de trabajo, no versionado, no se commitea). El bump de `pf-svc-operacion` a su versión publicada queda para cuando se libere.
+
+## 2026:10:14 (hora local) — reportes consume el bus (E6-T1, Paso 3)
+
+**Resumen:** core inyecta el Subscriber durable del bus a reportes, para que su consumidor de proyecciones (E6-T1, Pasos 1-2) arranque como worker y reportes consuma `viaje.*` end-to-end. Antes el camino estaba cableado en reportes pero muerto: core lo construía sin bus. Con esto, un core desplegado contra NATS puebla `hecho_viaje`/`hecho_transicion` de reportes a partir de lo que publica operacion.
+
+**Cambios:**
+- `go.mod`: `pf-svc-reportes` de `v0.1.1` a `v0.1.2` (la versión que expone `Deps.Subscriber`).
+- `cmd/core/main.go`: `construirModulos` recibe un parámetro nuevo `subscriber bus.Subscriber` (sibling de `busPublisher` y `broadcaster`, cada capacidad del bus tipada por separado). En la raíz se pasa `bc.durable`, el mismo objeto que ya actúa de Publisher durable, que también implementa `bus.Subscriber`. reportes se construye con `Subscriber: subscriber`; su `Workers()` ya devuelve el consumidor cuando el Subscriber no es nil (reportes v0.1.2). El worker aparece en readiness vía `RunGroup` como `worker:bus-durable:reportes`.
+- `cmd/core/wiring_test.go` (nuevo): test de cableado del Paso 3 con el bus en memoria (sin NATS ni Postgres). Afirma por diferencia que, con Subscriber, reportes aporta exactamente un worker más (su consumidor durable), y que sin Subscriber no aporta ninguno. La aserción fuerte es la diferencia de conteo; el nombre del worker se comprueba por substring para no acoplarse al prefijo del transporte (NATS y el bus en memoria usan `bus-durable:reportes`).
+
+**Nota de verificación end-to-end:** la prueba contra NATS real (que el worker aparezca en `/ready` y que un `viaje.creado` publicado llegue a la proyección) sigue la frontera del `bus_test.go` existente (build tag `nats`, fuera de CI). Este cambio la deja lista; su ejercicio con broker + Postgres vivos es el Paso 4 (gate G2 #4/#8).
+
+**Verificado:** gofmt limpio, `go vet ./...`, `go build ./...`, `go test ./...` (incluye el test de cableado nuevo), `go build -tags devauth ./...`, `go test -tags devauth ./...`, compuerta anti-stub (`go list -deps ./cmd/core` sin `internal/devauth`), build `-mod=readonly`, `go build ./cmd/core`, y arch-test@v0.1.3 OK.
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`
+- `cmd/core/main.go`, `cmd/core/wiring_test.go`
+
 ## 2026:10:07 17:27 — identidad + bff (composition root completo)
 
 **Resumen:** Se cablean identidad y bff en core, completando el composition root de los cinco módulos de V1 (arch-test exige exactamente `[bff, identidad, operacion, catalogos, reportes]`). Para el deployable `core`: ya compone, autentica y monta las rutas de los cinco; las aristas síncronas co-ubicadas se resuelven con adaptadores en proceso con paridad I3.

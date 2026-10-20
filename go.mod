@@ -9,12 +9,13 @@ go 1.27
 // (00 regla 7).
 require (
 	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.4
-	github.com/AI27-Tech/pf-pkg-platform-go v0.1.5
+	github.com/AI27-Tech/pf-pkg-platform-go v0.1.6
 	github.com/AI27-Tech/pf-svc-bff v0.1.3
 	github.com/AI27-Tech/pf-svc-catalogos v0.1.2
 	github.com/AI27-Tech/pf-svc-identidad v0.1.2
-	github.com/AI27-Tech/pf-svc-operacion v0.1.6
-	github.com/AI27-Tech/pf-svc-reportes v0.1.1
+	github.com/AI27-Tech/pf-svc-operacion v0.1.7
+	github.com/AI27-Tech/pf-svc-reportes v0.1.2
+	github.com/jackc/pgx/v5 v5.11.0
 )
 
 require (
@@ -29,7 +30,6 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.11.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/nats-io/nats.go v1.54.0 // indirect

@@ -296,9 +296,12 @@ func abrirBus(natsURL string) (busCableado, func(), error) {
 // co-ubicado. No se cablea un consumidor cuyo destino síncrono no exista (00
 // regla 6); no hay fakes de dominio en main. Faltan identidad y bff (DEC-049).
 //
-// TODO(core): aplicar las migraciones que cada módulo exporte (migrations.FS)
-// con el rol dueño de cada esquema antes de servir tráfico. Pendiente del
-// aplicador de migraciones acordado; hoy el scaffold no monta rutas de negocio.
+// Las migraciones NO se aplican aquí (DEC-096): el bootstrap de esquemas, roles
+// y grants corre como un paso de despliegue aparte, con credencial
+// administrativa, en `cmd/migrate`. `core` arranca con sus pools de app de
+// privilegio mínimo y asume que la base ya está migrada (I1: el proceso del
+// servicio nunca porta CREATE SCHEMA/CREATE ROLE). Los pools hacen ping en
+// abrirPools; una base sin migrar falla ahí de forma observable.
 func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscriber, broadcaster bus.Broadcaster, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
 	// identidad: hoja del grafo, un pool/rol (svc_identidad). Es destino de las
 	// aristas de revocación (operacion/catalogos/reportes) y de la de sesión

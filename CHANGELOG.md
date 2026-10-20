@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026:10:20 (hora local) — cmd/migrate: bootstrap de base de datos (E0-T7, DEC-096)
+
+**Resumen:** Nuevo binario `cmd/migrate`: el bootstrap de esquemas, roles y grants del deployable `core`. Corre una vez en el despliegue, con credencial administrativa (`DB_ADMIN_URL`), ANTES de `cmd/core`. Arma los `migrate.Modulo` de identidad, catalogos, operacion (sus 5 esquemas vía `migrations.Orden`/`RolPorEsquema`) y reportes, los aplica en dos fases con el paquete `migrate` de platform-go (v0.1.6), y fija el `search_path` de los roles cuyo relay/outbox/inbox consulta sin calificar el esquema.
+
+**Por qué un binario aparte (DEC-096):** los `0001` de cada módulo hacen `CREATE SCHEMA`/`CREATE ROLE`, privilegio que los pools de app de `core` (privilegio mínimo, I1) no tienen ni deben tener. Meter esa credencial en el proceso del servicio la dejaría viva en cada arranque; `cmd/migrate` la confina al paso de despliegue y termina. `cmd/core` arranca después con sus roles de app y asume la base migrada.
+
+**Cambios:**
+- `cmd/migrate/main.go` (nuevo): bootstrap. Una sola conexión admin aplica todos los módulos (el `ResolverEjecutor` la devuelve para cualquier rol; la pertenencia de cada esquema a su rol la fijan los `.sql`). `search_path` por rol tras aplicar (DEC-096 nota 3).
+- `cmd/core/main.go`: se retira el TODO de migraciones; se documenta que el bootstrap es externo (`cmd/migrate`) y que `core` asume la base migrada.
+- `go.mod`/`go.sum`: `pf-pkg-platform-go` a `v0.1.6` (trae el paquete `migrate`); se importan los subpaquetes `migrations` de los cuatro módulos con esquema.
+
+**Verificado:** `go build`/`vet` en verde, `gofmt` limpio, `arch-test@v0.1.3 OK`. Bootstrap probado end-to-end contra Postgres efímero: crea los 8 esquemas y 8 roles, la excepción de GRANT de `op_asignacion` sobre `viajes.outbox` queda efectiva (prueba que las dos fases corrieron en orden), los 4 `search_path` fijados, y reaplicar es idempotente.
+
+**Fuera de este cambio:** cablear el mismo bootstrap en `pf-svc-mensajeria` (su `cmd/migrate`), y que el gate G2 reuse estos binarios en vez de su lógica bash inline.
+
 ## 2026:10:15 (hora local) — operacion consume catalogo.actualizado (E5-T5)
 
 **Resumen:** core inyecta el Subscriber durable del bus a operacion, para que su consumidor de `catalogo.actualizado` (E5-T5) arranque como worker e invalide la caché en proceso de aptitud. Antes el camino quedaba cableado en operacion pero muerto: core lo construía sin Subscriber.

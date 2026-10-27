@@ -39,6 +39,7 @@ import (
 	"github.com/AI27-Tech/pf-svc-core/internal/adapters"
 	"github.com/AI27-Tech/pf-svc-core/internal/busregistry"
 	identidad "github.com/AI27-Tech/pf-svc-identidad"
+	mensajeria "github.com/AI27-Tech/pf-svc-mensajeria"
 	operacion "github.com/AI27-Tech/pf-svc-operacion"
 	reportes "github.com/AI27-Tech/pf-svc-reportes"
 )
@@ -56,6 +57,7 @@ const (
 	envDBOpRoster     = "DB_OP_ROSTER_URL"
 	envDBReportes     = "DB_SVC_REPORTES_URL"
 	envDBIdentidad    = "DB_SVC_IDENTIDAD_URL"
+	envDBMensajeria   = "DB_SVC_MENSAJERIA_URL"
 	// envNATSURL es la URL del broker de eventos (ADR 29/32). El bus es parte
 	// del camino de datos: core falla al arrancar si no responde, igual que con
 	// los pools (ver abrirBus).
@@ -75,6 +77,7 @@ var rolesDeBD = []struct {
 	{envDBOpRoster, "op_roster"},
 	{envDBReportes, "svc_reportes"},
 	{envDBIdentidad, "svc_identidad"},
+	{envDBMensajeria, "svc_mensajeria"},
 }
 
 // module es la superficie pública que cada pf-svc-* expone a la raíz (00-indice
@@ -159,7 +162,7 @@ func run() error {
 	//    se inyecta en bff.Deps.Verificador y en las rutas protegidas de identidad.
 	//    bff recibe el Broadcaster y construye internamente su proyección de
 	//    tombstones y su consumidor de sesion.revocada (bff v0.1.3).
-	modules, idn, err := construirModulos(pls, bc.durable, bc.conexion, autenticador, logger)
+	modules, idn, err := construirModulos(pls, bc.durable, bc.durable, bc.conexion, autenticador, logger)
 	if err != nil {
 		return err
 	}
@@ -221,6 +224,7 @@ type pools struct {
 	opRoster     *pgxpool.Pool
 	reportes     *pgxpool.Pool
 	identidad    *pgxpool.Pool
+	mensajeria   *pgxpool.Pool
 }
 
 // abrirPools abre un pool por cada rol declarado en rolesDeBD, lo registra en la
@@ -253,6 +257,7 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 		opRoster:     abiertos["op_roster"],
 		reportes:     abiertos["svc_reportes"],
 		identidad:    abiertos["svc_identidad"],
+		mensajeria:   abiertos["svc_mensajeria"],
 	}, cerrar, nil
 }
 
@@ -296,10 +301,13 @@ func abrirBus(natsURL string) (busCableado, func(), error) {
 // co-ubicado. No se cablea un consumidor cuyo destino síncrono no exista (00
 // regla 6); no hay fakes de dominio en main. Faltan identidad y bff (DEC-049).
 //
-// TODO(core): aplicar las migraciones que cada módulo exporte (migrations.FS)
-// con el rol dueño de cada esquema antes de servir tráfico. Pendiente del
-// aplicador de migraciones acordado; hoy el scaffold no monta rutas de negocio.
-func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broadcaster, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
+// Las migraciones NO se aplican aquí (DEC-096): el bootstrap de esquemas, roles
+// y grants corre como un paso de despliegue aparte, con credencial
+// administrativa, en `cmd/migrate`. `core` arranca con sus pools de app de
+// privilegio mínimo y asume que la base ya está migrada (I1: el proceso del
+// servicio nunca porta CREATE SCHEMA/CREATE ROLE). Los pools hacen ping en
+// abrirPools; una base sin migrar falla ahí de forma observable.
+func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscriber, broadcaster bus.Broadcaster, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
 	// identidad: hoja del grafo, un pool/rol (svc_identidad). Es destino de las
 	// aristas de revocación (operacion/catalogos/reportes) y de la de sesión
 	// (bff), así que se construye primero. Su relay de outbox drena
@@ -324,6 +332,10 @@ func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broad
 	// operacion: cinco pools, uno por rol/esquema (ADR 33). La arista a
 	// catalogos se resuelve con el adaptador en proceso sobre cat.Consultas();
 	// la restringida a identidad para revocación, con el adaptador de revocación.
+	// Recibe además el Subscriber durable del bus: con él, operacion envuelve su
+	// puerto Aptitud con la caché en proceso y abre el consumidor durable de
+	// catalogo.actualizado que la invalida (E5-T5). Sin Subscriber el módulo no
+	// cachea ni abre el consumidor (arranque standalone sin bus).
 	op, err := operacion.New(operacion.Pools{
 		Viajes:     p.opViajes,
 		Asignacion: p.opAsignacion,
@@ -336,6 +348,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broad
 		Verificador:  autenticador,
 		BusPublisher: busPublisher,
 		Broadcaster:  broadcaster,
+		Subscriber:   subscriber,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir operacion: %w", err)
@@ -343,23 +356,50 @@ func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broad
 
 	// reportes: un pool/rol (svc_reportes, ADR 18). Arista a catalogos
 	// (dimensiones) y la restringida a identidad para revocación, ambas en proceso.
+	// Recibe además el Subscriber durable del bus (bc.durable): con él, reportes
+	// construye el consumidor de proyecciones que consume viaje.* y puebla
+	// hecho_viaje/hecho_transicion (E6-T1). Sin Subscriber el módulo no abre el
+	// consumidor (arranque standalone sin bus).
 	rep, err := reportes.New(reportes.Pools{Reportes: p.reportes}, reportes.Deps{
 		Catalogos:  adapters.NewReportesCatalogos(cat.Consultas()),
 		Revocacion: adapters.NewRevocacionReportes(idn.Consultas()),
+		Subscriber: subscriber,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir reportes: %w", err)
 	}
 
-	// bff: sin pool (no es dueño de datos). Aristas en proceso a operacion e
-	// identidad (fase a). El verificador JWT es el autenticador real o el stub
-	// devauth. Recibe el Broadcaster: bff construye internamente su proyección de
-	// tombstones, el consumidor de sesion.revocada que la alimenta, la frescura,
-	// el fallback a identidad y la reconstrucción por snapshot (bff v0.1.3). Con
-	// esto la revocación es efectiva end-to-end.
+	// mensajeria: dos pools del rol svc_mensajeria (Chat y Despacho). En V1 no hay
+	// worker de despacho (DEC-023), así que ambos se cablean con el MISMO pool:
+	// Chat y Despacho son el mismo rol, no se viola I1 (la separación es de
+	// presupuesto, no de rol), y no se abre una conexión que V1 no ejercita.
+	// Upgrade: abrir un segundo pool svc_mensajeria para Despacho cuando el worker
+	// de despacho exista. Sus aristas a catalogos y a identidad (revocación) son
+	// HTTP por diseño (mensajeria.md (f)); en el compuesto quedan nil en V1, igual
+	// que otras deps opcionales del scaffold. Recibe el bus para su relay de outbox
+	// y el consumidor de catalogo.actualizado.
+	msg, err := mensajeria.New(mensajeria.Pools{
+		Chat:     p.mensajeria,
+		Despacho: p.mensajeria,
+	}, mensajeria.Deps{
+		Publisher:  busPublisher,
+		Subscriber: subscriber,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("construir mensajeria: %w", err)
+	}
+
+	// bff: sin pool (no es dueño de datos). Aristas en proceso a operacion,
+	// identidad, catalogos (E8-T11) y mensajeria (E7). El verificador JWT es el
+	// autenticador real o el stub devauth. Recibe el Broadcaster: bff construye
+	// internamente su proyección de tombstones, el consumidor de sesion.revocada
+	// que la alimenta, la frescura, el fallback a identidad y la reconstrucción
+	// por snapshot. Con esto la revocación es efectiva end-to-end.
 	front, err := bff.New(bff.Pools{}, bff.Deps{
 		Operacion:   adapters.NewBFFOperacion(op.Consultas()),
 		Identidad:   adapters.NewBFFIdentidad(idn.Consultas()),
+		Catalogos:   adapters.NewBFFCatalogos(cat.Consultas()),
+		Mensajeria:  adapters.NewBFFMensajeria(msg.Emergencias()),
 		Verificador: autenticador,
 		Broadcaster: broadcaster,
 	})
@@ -367,8 +407,8 @@ func construirModulos(p pools, busPublisher bus.Publisher, broadcaster bus.Broad
 		return nil, nil, fmt.Errorf("construir bff: %w", err)
 	}
 
-	logger.Info("módulos cableados: identidad + catalogos + operacion + reportes + bff (aristas co-ubicadas en proceso)")
+	logger.Info("módulos cableados: identidad + catalogos + operacion + reportes + mensajeria + bff (aristas co-ubicadas en proceso)")
 	// identidad va por separado: su Routes pide verificador y revocación (firma
 	// distinta de la interfaz module). Entra igual en la recolección de Workers.
-	return []module{cat, op, rep, front}, idn, nil
+	return []module{cat, op, rep, msg, front}, idn, nil
 }

@@ -58,6 +58,40 @@ func (f *catalogosFake) ObtenerSla(context.Context, catclient.Id, *catclient.Mar
 	panic("no debe invocarse en estas pruebas")
 }
 
+// Resto de ConsultasAPI (listados y obtención de catalogos v0.1.3): no se usan
+// en estas pruebas de aptitud; stubs que fallan si se invocan.
+func (f *catalogosFake) ListarClientes(context.Context, *catclient.Cursor) (*catclient.PaginaClientes, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
+func (f *catalogosFake) ListarVehiculos(context.Context, *catclient.Cursor) (*catclient.PaginaVehiculos, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
+func (f *catalogosFake) ListarVehiculosPorLote(context.Context, []catclient.Id) (*catclient.PaginaVehiculos, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
+func (f *catalogosFake) ObtenerVehiculo(context.Context, catclient.Id, *catclient.MarcaTiempo) (*catclient.Vehiculo, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
+func (f *catalogosFake) ListarCustodios(context.Context, *catclient.Cursor) (*catclient.PaginaCustodios, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
+func (f *catalogosFake) ListarCustodiosPorLote(context.Context, []catclient.Id) (*catclient.PaginaCustodios, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
+func (f *catalogosFake) ObtenerCustodio(context.Context, catclient.Id, *catclient.MarcaTiempo) (*catclient.Custodio, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
+func (f *catalogosFake) ListarValoresCatalogo(context.Context, catclient.TipoCatalogo, *catclient.Cursor) (*catclient.PaginaValoresCatalogo, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
 // TestAdaptadorImponeElMismoPresupuesto verifica que el adaptador en proceso
 // aplica un deadline (operacion.PresupuestoAptitud) al contexto que recibe
 // catalogos, igual que el HTTP (I3, obligación 1).

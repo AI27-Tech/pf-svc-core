@@ -56,6 +56,27 @@ func (f *operacionFake) ObtenerViaje(ctx context.Context, _ opclient.Id) (*opcli
 	return &opclient.ViajeDetalle{}, nil
 }
 
+func (f *operacionFake) ListarBitacora(ctx context.Context, _ opclient.Id, _ opclient.ListarBitacoraParams) (*opclient.PaginaBitacora, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.PaginaBitacora{}, nil
+}
+
+func (f *operacionFake) ConsultarAuditoria(ctx context.Context, _ opclient.Id, _ opclient.ConsultarAuditoriaParams) (*opclient.PaginaAuditoria, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.PaginaAuditoria{}, nil
+}
+
+func (f *operacionFake) RegistrarDescargaViaje(ctx context.Context, _ opclient.Id) (*opclient.Viaje, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Viaje{}, nil
+}
+
 // TestBFFOperacionImponeElMismoPresupuesto: el adaptador aplica el deadline
 // bff.PresupuestoOperacion al contexto que recibe operacion (I3, obligación 1).
 func TestBFFOperacionImponeElMismoPresupuesto(t *testing.T) {

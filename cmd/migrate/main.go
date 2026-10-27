@@ -27,6 +27,7 @@ import (
 
 	catalogosmig "github.com/AI27-Tech/pf-svc-catalogos/migrations"
 	identidadmig "github.com/AI27-Tech/pf-svc-identidad/migrations"
+	mensajeriamig "github.com/AI27-Tech/pf-svc-mensajeria/migrations"
 	operacionmig "github.com/AI27-Tech/pf-svc-operacion/migrations"
 	reportesmig "github.com/AI27-Tech/pf-svc-reportes/migrations"
 )
@@ -51,6 +52,7 @@ var searchPathPorRol = []struct{ rol, esquema string }{
 	{"op_viajes", "viajes"},
 	{"op_asignacion", "viajes"},
 	{"svc_reportes", "reportes"},
+	{"svc_mensajeria", "mensajeria"},
 }
 
 func main() {
@@ -95,6 +97,7 @@ func run() error {
 		unEsquema("catalogos", "svc_catalogos", catalogosmig.FS),
 		moduloOperacion(),
 		unEsquema("reportes", "svc_reportes", reportesmig.FS),
+		unEsquema("mensajeria", "svc_mensajeria", mensajeriamig.FS),
 	}
 
 	for _, m := range modulos {

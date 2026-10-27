@@ -1,6 +1,25 @@
 # CHANGELOG
 
-## 2026:10:20 (hora local) — cmd/migrate: bootstrap de base de datos (E0-T7, DEC-096)
+## 2026-10-27 — Componer mensajeria y cablear bff→catalogos, bff→operacion (E8-T11 + E6-T3 + E7)
+
+**Resumen:** core sube los pines a bff v0.1.4, catalogos v0.1.3, operacion v0.1.8 y pinea mensajeria v0.1.0, y cablea en proceso las aristas que esos tags habilitan. Con esto el selector de cliente (E8-T11), la descarga del expediente (E6-T3) y el panel de emergencia (E7) quedan resueltos en el binario compuesto.
+
+**Para quién:** para el deployment compuesto. El frontend interno obtiene `GET /api/v1/clientes` (selector), la descarga de UN viaje compone bitácora/auditoría desde operacion, y el panel de Reacción opera el carril de emergencia, todo a través de bff con las aristas resueltas en proceso.
+
+**Cambios:**
+- `go.mod`: bff `v0.1.3→v0.1.4`, catalogos `v0.1.2→v0.1.3`, operacion `v0.1.7→v0.1.8`, mensajeria nuevo `v0.1.0`. `api-client-go` sube a `tracer.20` por las dependencias.
+- `internal/adapters/bff_catalogos.go` (nuevo): adaptador en proceso `bff→catalogos` para `listarClientes` (E8-T11).
+- `internal/adapters/bff_mensajeria.go` (nuevo): adaptador en proceso `bff→mensajeria` sobre `mensajeria.Emergencias()` (los 8 métodos del carril de emergencia, E7). El `bearer` del puerto se ignora en proceso (claims en el ctx).
+- `internal/adapters/bff_operacion.go`: suma `ListarBitacora`, `ConsultarAuditoria`, `RegistrarDescargaViaje` (E6-T3), que el `OperacionPort` de bff v0.1.4 exige.
+- `cmd/core/main.go`: `construirModulos` arma `mensajeria.New` (dos pools del rol `svc_mensajeria`, Chat y Despacho con el MISMO pool en V1: no hay worker de despacho, DEC-023; upgrade a un segundo pool cuando exista), inyecta `bff.Deps.Catalogos` y `bff.Deps.Mensajeria`, y suma mensajeria a la lista de módulos. Nuevo env `DB_SVC_MENSAJERIA_URL` y pool en `rolesDeBD`/`pools`.
+- `cmd/migrate/main.go`: bootstrap del esquema `mensajeria` (rol `svc_mensajeria`) y su `search_path` (su relay de outbox consulta sin calificar el esquema).
+- Tests: los fakes de `internal/adapters` (operacionFake, catalogosFake, catalogosDimFake) se ponen al día con las interfaces ampliadas.
+
+**Dependencia de tooling:** arch-test reconoce `core compone mensajeria` desde `pf-pkg-platform-go` (regla `requires_exactly` con mensajeria). El CI de core debe subir el pin del tool a la versión tagueada con esa regla (ver abajo). Verificado local: `arch-test` con la regla nueva da OK contra core.
+
+**Verificación:** `go build ./...` + `go build ./cmd/core ./cmd/migrate`, `go vet ./...`, `go test ./...` (verde), `arch-test` con la regla nueva (OK). El pin del tool en el CI se sube en el mismo PR una vez exista el tag de platform-go.
+
+
 
 **Resumen:** Nuevo binario `cmd/migrate`: el bootstrap de esquemas, roles y grants del deployable `core`. Corre una vez en el despliegue, con credencial administrativa (`DB_ADMIN_URL`), ANTES de `cmd/core`. Arma los `migrate.Modulo` de identidad, catalogos, operacion (sus 5 esquemas vía `migrations.Orden`/`RolPorEsquema`) y reportes, los aplica en dos fases con el paquete `migrate` de platform-go (v0.1.6), y fija el `search_path` de los roles cuyo relay/outbox/inbox consulta sin calificar el esquema.
 

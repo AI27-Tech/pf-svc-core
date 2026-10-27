@@ -77,6 +77,46 @@ func (a *BFFOperacionEnProceso) ObtenerViaje(ctx context.Context, id opclient.Id
 	return out, nil
 }
 
+// ListarBitacora lee UNA página del histórico de bitácora del viaje (E6-T3). La
+// composición de la descarga agota las páginas (ADR 27: operacion es la fuente).
+func (a *BFFOperacionEnProceso) ListarBitacora(ctx context.Context, id opclient.Id, params opclient.ListarBitacoraParams) (*opclient.PaginaBitacora, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ListarBitacora(ctx, id, params)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ListarBitacora", err)
+	}
+	return out, nil
+}
+
+// ConsultarAuditoria lee UNA página de la auditoría relevante del viaje (E6-T3).
+// La composición de la descarga agota las páginas.
+func (a *BFFOperacionEnProceso) ConsultarAuditoria(ctx context.Context, id opclient.Id, params opclient.ConsultarAuditoriaParams) (*opclient.PaginaAuditoria, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ConsultarAuditoria(ctx, id, params)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ConsultarAuditoria", err)
+	}
+	return out, nil
+}
+
+// RegistrarDescargaViaje pide a operacion que deje el rastro de auditoría de la
+// descarga (E1-T7). El actor sale de los claims del ctx (que operacion lee); sin
+// cuerpo. operacion escribe el registro en su propia transacción.
+func (a *BFFOperacionEnProceso) RegistrarDescargaViaje(ctx context.Context, id opclient.Id) (*opclient.Viaje, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.RegistrarDescargaViaje(ctx, id)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "RegistrarDescargaViaje", err)
+	}
+	return out, nil
+}
+
 // traducirErrorOperacion mantiene la taxonomía del adaptador HTTP de bff: un
 // vencimiento del presupuesto o cancelación del contexto se traduce a Degradado;
 // cualquier otro error de operacion.Consultas() ya es un PlatformError

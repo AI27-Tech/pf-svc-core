@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-10-28 — tracer.21: subir el pin de contrato
+
+**Resumen:** se sube el pin de `pf-pkg-contracts` de `v0.1.0-tracer.20` a `v0.1.0-tracer.21`. Aditivo (ficha técnica E8-T12 / histórico E8-T13); los módulos que `core` compone no cambian su superficie. Solo `go.mod`/`go.sum`.
+
+**Para quién:** alineación de versión de contrato de la raíz de composición con los módulos que cablea.
+
+**Cambios:**
+- `go.mod`/`go.sum`: `api-client-go` `v0.1.0-tracer.20` → `v0.1.0-tracer.21`.
+
+**Verificación:** `go build/vet ./...`, `go test ./...` (3 paquetes ok), `gofmt` limpio, `arch-test` (v0.1.7, la del CI) OK. Sin renombres de enum (§8).
+
 ## 2026-10-27 — Componer mensajeria y cablear bff→catalogos, bff→operacion (E8-T11 + E6-T3 + E7)
 
 **Resumen:** core sube los pines a bff v0.1.4, catalogos v0.1.3, operacion v0.1.8 y pinea mensajeria v0.1.0, y cablea en proceso las aristas que esos tags habilitan. Con esto el selector de cliente (E8-T11), la descarga del expediente (E6-T3) y el panel de emergencia (E7) quedan resueltos en el binario compuesto.

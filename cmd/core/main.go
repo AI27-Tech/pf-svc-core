@@ -166,9 +166,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	for _, m := range modules {
-		m.Routes(srv.Mux())
-	}
+	montarRutas(srv.Mux(), modules)
 	// identidad monta sus rutas con el verificador. La revocación en SUS rutas
 	// (consultar su propia proyección) es alcance aparte; aquí va nil. La
 	// revocación efectiva end-to-end que este cableado cierra es la de bff.
@@ -288,6 +286,23 @@ func abrirBus(natsURL string) (busCableado, func(), error) {
 	}
 	cerrar := func() { _ = conexion.Cerrar() }
 	return busCableado{conexion: conexion, durable: durable}, cerrar, nil
+}
+
+// montarRutas monta las rutas de los módulos con bff como puerta única: bff va en
+// el mux público y gana; el resto monta en un mux interno al que el público
+// delega lo que bff no sirve. Los módulos publican también las rutas que bff
+// proxea (su modo standalone); en un solo mux esos patrones repetidos hacen
+// panic al arrancar. Un choque entre dos módulos no-bff sigue haciendo panic.
+func montarRutas(publico *http.ServeMux, modules []module) {
+	internos := http.NewServeMux()
+	for _, m := range modules {
+		if _, esBFF := m.(*bff.Module); esBFF {
+			m.Routes(publico)
+			continue
+		}
+		m.Routes(internos)
+	}
+	publico.Handle("/", internos)
 }
 
 // construirModulos construye y devuelve los módulos de `core` que existan hoy.

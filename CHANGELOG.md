@@ -2,14 +2,12 @@
 
 ## 2026-11-02 17:10 CST — Componer bff v0.1.12 (tracer.31) y arrancar sin choque de rutas
 
-> **No mergear con estos pines.** operacion y mensajeria apuntan a pseudo-versiones de ramas SIN MERGEAR (operacion PR #71 `9d181b3`, mensajeria PR #33 `1a09ca1`). Antes de mergear hay que re-pinearlas a sus tags.
-
 **Resumen:** core sube bff a v0.1.12 y cablea en proceso los puertos nuevos: transición de viaje, tipos de servicio y la conversación/bandeja de mensajeria. Además corrige un panic de arranque que ya existía en `pf-core-d`: el binario compuesto no llegaba a `/ready`.
 
 **Para quién:** para el binario de la demo (DEC-088). Con esto corren en core la transición interna (E8-T14) y del cliente (E9-T7), el selector de tipos de servicio (E9-T4), la conversación del cliente (E9-T8) y la bandeja interna (E8-T15).
 
 **Cambios:**
-- `go.mod`/`go.sum`: bff `v0.1.4→v0.1.12`; operacion `v0.1.8→v0.1.11-0.20261102225516-9d181b3a58b0` (PR #71); mensajeria `v0.1.0→v0.0.0-20261102225804-1a09ca1e59ae` (PR #33); por MVS `api-client-go` `tracer.21→tracer.31` y platform-go `v0.1.6→v0.1.8`. catalogos sigue en v0.1.3. Sin renombres de enum (§8).
+- `go.mod`/`go.sum`: bff `v0.1.4→v0.1.12`; operacion `v0.1.8→v0.1.13` (fachada `TransicionarViaje`, PR #71); mensajeria `v0.1.0→v0.1.2` (fachada `ConversacionesAPI`, PR #33); por MVS `api-client-go` `tracer.21→tracer.31` y platform-go `v0.1.6→v0.1.8`. catalogos sigue en v0.1.3. Sin renombres de enum (§8).
 - `internal/adapters/bff_operacion.go`: `TransicionarViaje` sobre `Consultas().TransicionarViaje`.
 - `internal/adapters/bff_catalogos.go`: `ListarTiposServicio` sobre `ListarValoresCatalogo` con `catclient.TiposServicio` fijo, mismo presupuesto y traducción que `ListarClientes`.
 - `internal/adapters/bff_mensajeria.go`: el adaptador también recibe `mensajeria.ConversacionesAPI` (cambia `NewBFFMensajeria`). Agrega los 10 métodos de conversación y bandeja. `MarcarAtendida`, `RegistrarReciboEntregado` y `RegistrarReciboLeido` devuelven el mismo `NoEncontrado` que el adaptador HTTP de bff traduce del 404 de mensajeria (mensajeria no tiene esos casos de uso). Los ids pasan sin cambio, igual que por HTTP.

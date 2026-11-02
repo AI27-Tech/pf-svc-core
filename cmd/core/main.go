@@ -399,7 +399,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 		Operacion:   adapters.NewBFFOperacion(op.Consultas()),
 		Identidad:   adapters.NewBFFIdentidad(idn.Consultas()),
 		Catalogos:   adapters.NewBFFCatalogos(cat.Consultas()),
-		Mensajeria:  adapters.NewBFFMensajeria(msg.Emergencias()),
+		Mensajeria:  adapters.NewBFFMensajeria(msg.Emergencias(), msg.Conversaciones()),
 		Verificador: autenticador,
 		Broadcaster: broadcaster,
 	})

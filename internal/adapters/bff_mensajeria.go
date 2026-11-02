@@ -20,24 +20,32 @@ import (
 //
 //  1. Mismo presupuesto de tiempo: bff.PresupuestoMensajeria, el valor que
 //     exporta el consumidor.
-//  2. Misma taxonomía de error: mensajeria.EmergenciasAPI ya devuelve errores de
-//     la plataforma categorizados (autoriza y traduce internamente), que se
-//     propagan; un vencimiento o cancelación del contexto se traduce a Degradado.
+//  2. Misma taxonomía de error: mensajeria.EmergenciasAPI y
+//     mensajeria.ConversacionesAPI ya devuelven errores de la plataforma
+//     categorizados (autorizan y traducen internamente), que se propagan; un
+//     vencimiento o cancelación del contexto se traduce a Degradado.
 //  3. Tipos de pf-pkg-contracts (msgclient), nunca tipos de internal/ de mensajeria.
 //
 // El parámetro bearer del puerto es para el adaptador HTTP (propaga el header);
 // en proceso los claims ya viajan en el ctx (el middleware del bff los puso), y
-// mensajeria.EmergenciasAPI los lee de ahí, igual que BFFCatalogosEnProceso.
+// mensajeria.EmergenciasAPI y mensajeria.ConversacionesAPI los leen de ahí, igual
+// que BFFCatalogosEnProceso.
+//
+// Los ids pasan sin cambio, igual que por HTTP: el puerto entrega un viajeID a
+// los métodos de conversación del cliente y mensajeria lo busca como
+// conversacion.id. Esa brecha es la misma en ambas topologías y la decide el Lead.
 type BFFMensajeriaEnProceso struct {
-	api mensajeria.EmergenciasAPI
+	api  mensajeria.EmergenciasAPI
+	conv mensajeria.ConversacionesAPI
 }
 
 var _ bff.MensajeriaPort = (*BFFMensajeriaEnProceso)(nil)
 
-// NewBFFMensajeria construye el adaptador en proceso sobre la superficie
-// Emergencias() de mensajeria. La raíz lo inyecta en bff.Deps.Mensajeria.
-func NewBFFMensajeria(api mensajeria.EmergenciasAPI) *BFFMensajeriaEnProceso {
-	return &BFFMensajeriaEnProceso{api: api}
+// NewBFFMensajeria construye el adaptador en proceso sobre las superficies
+// Emergencias() y Conversaciones() de mensajeria. La raíz lo inyecta en
+// bff.Deps.Mensajeria.
+func NewBFFMensajeria(api mensajeria.EmergenciasAPI, conv mensajeria.ConversacionesAPI) *BFFMensajeriaEnProceso {
+	return &BFFMensajeriaEnProceso{api: api, conv: conv}
 }
 
 func (a *BFFMensajeriaEnProceso) ListarEmergencias(ctx context.Context, _ string, viajeID msgclient.Id) (*msgclient.PaginaEmergencias, error) {
@@ -121,9 +129,109 @@ func (a *BFFMensajeriaEnProceso) CerrarEmergencia(ctx context.Context, _ string,
 	return &msgclient.CasoEmergencia{Id: emergenciaID}, nil
 }
 
+// --- Conversación del viaje (E9-T8) y bandeja interna (E8-T15) ---------------
+
+func (a *BFFMensajeriaEnProceso) ObtenerConversacion(ctx context.Context, _ string, viajeID msgclient.Id) (*msgclient.Conversacion, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.ObtenerConversacion(ctx, viajeID)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ObtenerConversacion", err)
+	}
+	return out, nil
+}
+
+func (a *BFFMensajeriaEnProceso) ListarMensajes(ctx context.Context, _ string, viajeID msgclient.Id, params msgclient.ListarMensajesParams) (*msgclient.PaginaMensajes, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.ListarMensajes(ctx, viajeID, params)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ListarMensajes", err)
+	}
+	return out, nil
+}
+
+func (a *BFFMensajeriaEnProceso) EnviarMensaje(ctx context.Context, _ string, viajeID msgclient.Id, body msgclient.EnviarMensajeEntrada) (*msgclient.Mensaje, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.EnviarMensaje(ctx, viajeID, body)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "EnviarMensaje", err)
+	}
+	return out, nil
+}
+
+func (a *BFFMensajeriaEnProceso) ListarTrabajoBandeja(ctx context.Context, _ string, params msgclient.ListarTrabajoMiBandejaParams) (*msgclient.TrabajoBandeja, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.ListarTrabajoBandeja(ctx, params)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ListarTrabajoBandeja", err)
+	}
+	return out, nil
+}
+
+func (a *BFFMensajeriaEnProceso) ReclamarConversacion(ctx context.Context, _ string, conversacionID msgclient.Id, body msgclient.VersionEsperadaEntrada) (*msgclient.Reclamo, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.ReclamarConversacion(ctx, conversacionID, body)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ReclamarConversacion", err)
+	}
+	return out, nil
+}
+
+func (a *BFFMensajeriaEnProceso) LiberarReclamo(ctx context.Context, _ string, conversacionID, reclamoID msgclient.Id, params msgclient.LiberarReclamoParams) error {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	if err := a.conv.LiberarReclamo(ctx, conversacionID, reclamoID, params); err != nil {
+		return traducirErrorMensajeria(ctx, "LiberarReclamo", err)
+	}
+	return nil
+}
+
+func (a *BFFMensajeriaEnProceso) TransferirConversacion(ctx context.Context, _ string, conversacionID msgclient.Id, body msgclient.TransferenciaEntrada) (*msgclient.Reclamo, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.TransferirConversacion(ctx, conversacionID, body)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "TransferirConversacion", err)
+	}
+	return out, nil
+}
+
+// MarcarAtendida devuelve lo mismo que el adaptador HTTP de bff cuando mensajeria
+// responde 404 a la ruta que no tiene: NoEncontrado con el mismo mensaje.
+//
+// shortcut: mensajeria no tiene caso de uso de marcar atendida; cuando exista, reenviar a ConversacionesAPI
+func (a *BFFMensajeriaEnProceso) MarcarAtendida(context.Context, string, msgclient.Id, msgclient.VersionEsperadaEntrada) error {
+	return sinRutaEnMensajeria("MarcarAtendida")
+}
+
+// RegistrarReciboEntregado: misma paridad con el 404 del carril HTTP.
+//
+// shortcut: mensajeria no tiene caso de uso de recibo entregado; cuando exista, reenviar a ConversacionesAPI
+func (a *BFFMensajeriaEnProceso) RegistrarReciboEntregado(context.Context, string, msgclient.Id, msgclient.ReciboEntrada) error {
+	return sinRutaEnMensajeria("RegistrarReciboEntregado")
+}
+
+// RegistrarReciboLeido: misma paridad con el 404 del carril HTTP.
+//
+// shortcut: mensajeria no tiene caso de uso de recibo leído; cuando exista, reenviar a ConversacionesAPI
+func (a *BFFMensajeriaEnProceso) RegistrarReciboLeido(context.Context, string, msgclient.Id, msgclient.ReciboEntrada) error {
+	return sinRutaEnMensajeria("RegistrarReciboLeido")
+}
+
+// sinRutaEnMensajeria reproduce el error que errores.DeStatus(op, 404) de bff
+// (paquete internal, no importable) produce ante el 404 de mensajeria.
+func sinRutaEnMensajeria(op string) error {
+	return platformerrors.NewNoEncontrado("bff: %s: no encontrado aguas abajo", op)
+}
+
 // traducirErrorMensajeria mantiene la taxonomía del adaptador HTTP de bff: un
 // vencimiento del presupuesto o cancelación del contexto se traduce a Degradado;
-// cualquier otro error de mensajeria.EmergenciasAPI ya es un PlatformError
+// cualquier otro error de mensajeria.EmergenciasAPI o ConversacionesAPI ya es un
+// PlatformError
 // categorizado y se propaga.
 func traducirErrorMensajeria(ctx context.Context, op string, err error) error {
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || ctx.Err() != nil {

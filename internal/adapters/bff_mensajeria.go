@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	msgclient "github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go/mensajeria"
+	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
 	platformerrors "github.com/AI27-Tech/pf-pkg-platform-go/errors"
 	bff "github.com/AI27-Tech/pf-svc-bff"
 	mensajeria "github.com/AI27-Tech/pf-svc-mensajeria"
@@ -31,9 +32,13 @@ import (
 // mensajeria.EmergenciasAPI y mensajeria.ConversacionesAPI los leen de ahí, igual
 // que BFFCatalogosEnProceso.
 //
-// Los ids pasan sin cambio, igual que por HTTP: el puerto entrega un viajeID a
-// los métodos de conversación del cliente y mensajeria lo busca como
-// conversacion.id. Esa brecha es la misma en ambas topologías y la decide el Lead.
+// ObtenerConversacion, ListarMensajes y EnviarMensaje los usa el bff con dos
+// tipos de id: el portal cliente (/viajes/{id}/conversacion, solo audiencia
+// Cliente) entrega el viaje_id y la superficie interna (/conversaciones/{id},
+// solo Interno) entrega el conversacion_id. Con audiencia Cliente el adaptador
+// resuelve primero la conversación del viaje (obtenerConversacionDeViaje,
+// DEC-029) y sigue por id; con audiencia interna el id pasa sin cambio. El resto
+// de los ids pasa sin cambio, igual que por HTTP.
 type BFFMensajeriaEnProceso struct {
 	api  mensajeria.EmergenciasAPI
 	conv mensajeria.ConversacionesAPI
@@ -131,30 +136,58 @@ func (a *BFFMensajeriaEnProceso) CerrarEmergencia(ctx context.Context, _ string,
 
 // --- Conversación del viaje (E9-T8) y bandeja interna (E8-T15) ---------------
 
-func (a *BFFMensajeriaEnProceso) ObtenerConversacion(ctx context.Context, _ string, viajeID msgclient.Id) (*msgclient.Conversacion, error) {
+// conversacionID traduce el id que entrega el bff al conversacion_id de
+// mensajeria. Solo la audiencia Cliente llega con viaje_id: el bff v0.1.13
+// rechaza en sus handlers a la audiencia que no corresponde a cada ruta.
+// shortcut: el tipo de id se infiere de la audiencia, no del puerto; separar los
+// métodos de viaje en bff.MensajeriaPort y borrar este despacho cuando exista.
+func (a *BFFMensajeriaEnProceso) conversacionID(ctx context.Context, id msgclient.Id) (msgclient.Id, error) {
+	if c := auth.ClaimsFromContext(ctx); c == nil || c.Audiencia != auth.AudienciaCliente {
+		return id, nil
+	}
+	conv, err := a.conv.ObtenerConversacionDeViaje(ctx, id)
+	if err != nil {
+		return msgclient.Id{}, err
+	}
+	return conv.Id, nil
+}
+
+func (a *BFFMensajeriaEnProceso) ObtenerConversacion(ctx context.Context, _ string, id msgclient.Id) (*msgclient.Conversacion, error) {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
 	defer cancel()
-	out, err := a.conv.ObtenerConversacion(ctx, viajeID)
+	convID, err := a.conversacionID(ctx, id)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ObtenerConversacion", err)
+	}
+	out, err := a.conv.ObtenerConversacion(ctx, convID)
 	if err != nil {
 		return nil, traducirErrorMensajeria(ctx, "ObtenerConversacion", err)
 	}
 	return out, nil
 }
 
-func (a *BFFMensajeriaEnProceso) ListarMensajes(ctx context.Context, _ string, viajeID msgclient.Id, params msgclient.ListarMensajesParams) (*msgclient.PaginaMensajes, error) {
+func (a *BFFMensajeriaEnProceso) ListarMensajes(ctx context.Context, _ string, id msgclient.Id, params msgclient.ListarMensajesParams) (*msgclient.PaginaMensajes, error) {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
 	defer cancel()
-	out, err := a.conv.ListarMensajes(ctx, viajeID, params)
+	convID, err := a.conversacionID(ctx, id)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ListarMensajes", err)
+	}
+	out, err := a.conv.ListarMensajes(ctx, convID, params)
 	if err != nil {
 		return nil, traducirErrorMensajeria(ctx, "ListarMensajes", err)
 	}
 	return out, nil
 }
 
-func (a *BFFMensajeriaEnProceso) EnviarMensaje(ctx context.Context, _ string, viajeID msgclient.Id, body msgclient.EnviarMensajeEntrada) (*msgclient.Mensaje, error) {
+func (a *BFFMensajeriaEnProceso) EnviarMensaje(ctx context.Context, _ string, id msgclient.Id, body msgclient.EnviarMensajeEntrada) (*msgclient.Mensaje, error) {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
 	defer cancel()
-	out, err := a.conv.EnviarMensaje(ctx, viajeID, body)
+	convID, err := a.conversacionID(ctx, id)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "EnviarMensaje", err)
+	}
+	out, err := a.conv.EnviarMensaje(ctx, convID, body)
 	if err != nil {
 		return nil, traducirErrorMensajeria(ctx, "EnviarMensaje", err)
 	}

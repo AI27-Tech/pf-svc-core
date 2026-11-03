@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-11-03 11:54 CST — Resolver la conversación del viaje para el portal cliente (E9-T8)
+
+**Resumen:** el adaptador en proceso bff → mensajeria traduce el viaje_id del portal cliente al conversacion_id con `ObtenerConversacionDeViaje` antes de leer o escribir. Antes el portal cliente recibía 404 en `GET/POST /api/v1/viajes/{id}/conversacion[/mensajes]` porque el viaje_id se buscaba como `conversacion.id`.
+
+**Para quién:** para el cliente del binario de la demo (E9-T8) y para quien separe después los métodos de viaje en `bff.MensajeriaPort`: el despacho de este adaptador es provisional.
+
+**Cambios:**
+- `go.mod`/`go.sum`: mensajeria `v0.1.3 → v0.1.4` (`ConversacionesAPI.ObtenerConversacionDeViaje`, migración 0007); por MVS `api-client-go` `tracer.31 → tracer.33`. Sin renombres de enum (git-workflow §8).
+- `internal/adapters/bff_mensajeria.go`: `ObtenerConversacion`, `ListarMensajes` y `EnviarMensaje` resuelven la conversación del viaje cuando la audiencia es Cliente y siguen por id; con audiencia interna el id pasa sin cambio. Un solo presupuesto `bff.PresupuestoMensajeria` y `traducirErrorMensajeria` para las dos llamadas. bff v0.1.13 usa esos tres métodos con viaje_id (rutas `/viajes/{id}/conversacion`, solo Cliente) y con conversacion_id (rutas `/conversaciones/{id}`, solo Interno); la audiencia es lo único que el adaptador ve para distinguirlos (comentario `shortcut`).
+- `internal/adapters/bff_mensajeria_test.go`: `TestBFFMensajeriaConversacionDeViaje` comprueba, en los tres métodos, que el viaje_id llega como conversacion_id resuelto, que el id interno pasa sin cambio y que el 404 de la resolución se propaga sin llamar al método por id.
+
+**Verificación:** `gofmt` limpio; `go build/vet/test ./...` con y sin `-tags devauth`; devauth ausente del build de producción; `arch-test` v0.1.8 OK. `cmd/migrate` aplica la 0007 de mensajeria (índice `reclamo_version_por_conversacion`). Smoke sobre el binario real con el arnés gate-g2, por rutas del bff: el cliente lee la conversación 200, envía 201 y lista 200; otro tenant y otro cliente del mismo tenant 404; el ejecutivo ve la conversación en la bandeja, reclama con la `version_reclamo` leída 201 y responde 201. El mismo smoke contra `pf-core-d` da 404 en las tres rutas del cliente (ver PR).
+
 ## 2026-11-03 10:40 CST — Componer el flujo interno del panel y la atención de la bandeja por el bff
 
 **Resumen:** core cablea en proceso los ocho métodos nuevos de `bff.OperacionPort` (ETA, asignación, bitácora, incidencias, estadías) sobre `operacion.Consultas()`, y reenvía atendida y recibos de la bandeja a mensajeria. Con eso el panel interno hace el flujo operativo del viaje y la atención de la conversación por las rutas del bff, primer paso para que el bff sea la única puerta pública.

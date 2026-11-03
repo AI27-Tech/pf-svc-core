@@ -136,8 +136,11 @@ func TestMontarRutasBFFGanaSinPanic(t *testing.T) {
 		{"GET", "/api/v1/catalogos/tipos-servicio", "GET /api/v1/catalogos/tipos-servicio"},
 		{"GET", "/api/v1/bandeja/trabajo", "GET /api/v1/bandeja/trabajo"},
 		{"POST", "/api/v1/conversaciones/x/atendida", "POST /api/v1/conversaciones/{id}/atendida"},
-		// Solo operacion la sirve: cae al mux interno.
-		{"POST", "/api/v1/viajes/x/asignacion", "/"},
+		// El flujo interno del panel ya lo sirve bff (única puerta pública).
+		{"POST", "/api/v1/viajes/x/asignacion", "POST /api/v1/viajes/{id}/asignacion"},
+		{"GET", "/api/v1/viajes/x/detalle", "GET /api/v1/viajes/{id}/detalle"},
+		// Solo operacion la sirve (reasignar): cae al mux interno.
+		{"PATCH", "/api/v1/viajes/x/asignacion", "/"},
 	}
 	for _, c := range casos {
 		_, patron := publico.Handler(httptest.NewRequest(c.metodo, c.ruta, nil))
@@ -149,8 +152,8 @@ func TestMontarRutasBFFGanaSinPanic(t *testing.T) {
 	// La ruta exclusiva de operacion llega a operacion (su middleware responde
 	// 401 sin token), no a un 404 del mux.
 	rec := httptest.NewRecorder()
-	publico.ServeHTTP(rec, httptest.NewRequest("POST", "/api/v1/viajes/x/asignacion", nil))
-	if rec.Code == http.StatusNotFound {
-		t.Fatalf("POST /api/v1/viajes/x/asignacion = 404; no llegó a operacion")
+	publico.ServeHTTP(rec, httptest.NewRequest("PATCH", "/api/v1/viajes/x/asignacion", nil))
+	if rec.Code == http.StatusNotFound || rec.Code == http.StatusMethodNotAllowed {
+		t.Fatalf("PATCH /api/v1/viajes/x/asignacion = %d; no llegó a operacion", rec.Code)
 	}
 }

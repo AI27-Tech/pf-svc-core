@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-11-02 18:04 CST — Componer el flujo interno del panel por el bff (BORRADOR: pins a pseudo-versión)
+
+> **Antes de mergear:** los pins de `pf-svc-operacion` y `pf-svc-bff` son PSEUDO-VERSIONES de ramas sin mergear (operacion PR #74, bff PR #59). Hay que volver a fijarlos a los tags que salgan de esas olas (`go get ...@vX.Y.Z` + `go mod tidy`) y repetir build/vet/test. Este PR queda en draft hasta entonces.
+
+**Resumen:** core cablea en proceso los ocho métodos nuevos de `bff.OperacionPort` (ETA, asignación, bitácora, incidencias, estadías) sobre `operacion.Consultas()`. Con eso el panel interno hace el flujo operativo del viaje por las rutas del bff, primer paso para que el bff sea la única puerta pública.
+
+**Para quién:** para el binario de la demo y para quien cierre después el mux de respaldo de `montarRutas`: estas rutas ya no dependen de él.
+
+**Cambios:**
+- `go.mod`/`go.sum`: operacion `v0.1.13 → v0.1.11-0.20261102235427-22847ddb74ec` y bff `v0.1.12 → v0.0.0-20261103000042-4e2e2915f14d` (pseudo-versiones; Go las reporta como "downgrade" porque esas ramas no tienen los tags de `-m` como ancestros). `api-client-go` sigue en `tracer.31`.
+- `internal/adapters/bff_operacion.go`: `FijarEta`, `AsignarRecursos`, `RegistrarEntradaBitacora`, `AbrirIncidencia`, `ResolverIncidencia`, `ListarEstadias`, `AbrirEstadia`, `CerrarEstadia`, con el mismo presupuesto y traducción de error que los existentes (I3).
+- `internal/adapters/bff_operacion_test.go`: el fake implementa los ocho métodos; `TestBFFOperacionFlujoInterno` comprueba deadline y propagación del `codigo` del conflicto en cada uno.
+- `cmd/core/wiring_test.go`: `POST .../asignacion` y `GET .../detalle` ya los sirve bff en el mux público; el ejemplo de ruta que cae al mux interno pasa a `PATCH .../asignacion` (reasignar, solo operacion). `montarRutas` no cambia.
+
+**Verificación:** `gofmt` limpio; `go build/vet/test ./...` con y sin `-tags devauth`; devauth ausente del build de producción; `arch-test` v0.1.8 OK. Smoke sobre el binario real con el arnés gate-g2 (ver PR): crear, aprobar, `/detalle`, ETA, bitácora, incidencias, estadías y asignación por las rutas del bff.
+
 ## 2026-11-02 17:10 CST — Componer bff v0.1.12 (tracer.31) y arrancar sin choque de rutas
 
 **Resumen:** core sube bff a v0.1.12 y cablea en proceso los puertos nuevos: transición de viaje, tipos de servicio y la conversación/bandeja de mensajeria. Además corrige un panic de arranque que ya existía en `pf-core-d`: el binario compuesto no llegaba a `/ready`.

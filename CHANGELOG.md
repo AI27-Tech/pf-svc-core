@@ -1,20 +1,20 @@
 # CHANGELOG
 
-## 2026-11-02 18:04 CST — Componer el flujo interno del panel por el bff (BORRADOR: pins a pseudo-versión)
+## 2026-11-03 10:40 CST — Componer el flujo interno del panel y la atención de la bandeja por el bff
 
-> **Antes de mergear:** los pins de `pf-svc-operacion` y `pf-svc-bff` son PSEUDO-VERSIONES de ramas sin mergear (operacion PR #74, bff PR #59). Hay que volver a fijarlos a los tags que salgan de esas olas (`go get ...@vX.Y.Z` + `go mod tidy`) y repetir build/vet/test. Este PR queda en draft hasta entonces.
-
-**Resumen:** core cablea en proceso los ocho métodos nuevos de `bff.OperacionPort` (ETA, asignación, bitácora, incidencias, estadías) sobre `operacion.Consultas()`. Con eso el panel interno hace el flujo operativo del viaje por las rutas del bff, primer paso para que el bff sea la única puerta pública.
+**Resumen:** core cablea en proceso los ocho métodos nuevos de `bff.OperacionPort` (ETA, asignación, bitácora, incidencias, estadías) sobre `operacion.Consultas()`, y reenvía atendida y recibos de la bandeja a mensajeria. Con eso el panel interno hace el flujo operativo del viaje y la atención de la conversación por las rutas del bff, primer paso para que el bff sea la única puerta pública.
 
 **Para quién:** para el binario de la demo y para quien cierre después el mux de respaldo de `montarRutas`: estas rutas ya no dependen de él.
 
 **Cambios:**
-- `go.mod`/`go.sum`: operacion `v0.1.13 → v0.1.11-0.20261102235427-22847ddb74ec` y bff `v0.1.12 → v0.0.0-20261103000042-4e2e2915f14d` (pseudo-versiones; Go las reporta como "downgrade" porque esas ramas no tienen los tags de `-m` como ancestros). `api-client-go` sigue en `tracer.31`.
+- `go.mod`/`go.sum`: bff `v0.1.12 → v0.1.13`, operacion `v0.1.13 → v0.1.14` (roles de incidencia corregidos: `monitorista` ya abre incidencias) y mensajeria `v0.1.2 → v0.1.3` (`MarcarAtendida` y recibos en `ConversacionesAPI`, migración 0006). Todos tags publicados. `api-client-go` sigue en `tracer.31`. Sin renombres de enum (git-workflow §8).
 - `internal/adapters/bff_operacion.go`: `FijarEta`, `AsignarRecursos`, `RegistrarEntradaBitacora`, `AbrirIncidencia`, `ResolverIncidencia`, `ListarEstadias`, `AbrirEstadia`, `CerrarEstadia`, con el mismo presupuesto y traducción de error que los existentes (I3).
+- `internal/adapters/bff_mensajeria.go`: `MarcarAtendida`, `RegistrarReciboEntregado` y `RegistrarReciboLeido` reenvían a `mensajeria.ConversacionesAPI` con `bff.PresupuestoMensajeria` y `traducirErrorMensajeria`. Se borra `sinRutaEnMensajeria` (el `NoEncontrado` provisional).
 - `internal/adapters/bff_operacion_test.go`: el fake implementa los ocho métodos; `TestBFFOperacionFlujoInterno` comprueba deadline y propagación del `codigo` del conflicto en cada uno.
+- `internal/adapters/bff_mensajeria_test.go`: `TestBFFMensajeriaAtencionYRecibos` sustituye a la prueba del `NoEncontrado`: comprueba que los tres métodos llegan a mensajeria con id y cuerpo sin cambio y que el error categorizado se propaga.
 - `cmd/core/wiring_test.go`: `POST .../asignacion` y `GET .../detalle` ya los sirve bff en el mux público; el ejemplo de ruta que cae al mux interno pasa a `PATCH .../asignacion` (reasignar, solo operacion). `montarRutas` no cambia.
 
-**Verificación:** `gofmt` limpio; `go build/vet/test ./...` con y sin `-tags devauth`; devauth ausente del build de producción; `arch-test` v0.1.8 OK. Smoke sobre el binario real con el arnés gate-g2 (ver PR): crear, aprobar, `/detalle`, ETA, bitácora, incidencias, estadías y asignación por las rutas del bff.
+**Verificación:** `gofmt` limpio; `go build/vet/test ./...` con y sin `-tags devauth`; devauth ausente del build de producción; `arch-test` v0.1.8 OK. `cmd/migrate` aplica la 0006 de mensajeria (`conversacion.leido_ai27_hasta`, `auditoria_mensajeria.registro_id` y sus índices). Smoke sobre el binario real con el arnés gate-g2, solo por rutas del bff: flujo interno completo (incidencia abierta por `monitorista` 201), bandeja (listar, reclamar 201, enviar 201, atendida 204, recibos 204, reclamo con versión obsoleta 409) y sujeto no-UUID en mensajeria 401 sin texto SQL (ver PR).
 
 ## 2026-11-02 17:10 CST — Componer bff v0.1.12 (tracer.31) y arrancar sin choque de rutas
 

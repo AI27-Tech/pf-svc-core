@@ -200,32 +200,31 @@ func (a *BFFMensajeriaEnProceso) TransferirConversacion(ctx context.Context, _ s
 	return out, nil
 }
 
-// MarcarAtendida devuelve lo mismo que el adaptador HTTP de bff cuando mensajeria
-// responde 404 a la ruta que no tiene: NoEncontrado con el mismo mensaje.
-//
-// shortcut: mensajeria no tiene caso de uso de marcar atendida; cuando exista, reenviar a ConversacionesAPI
-func (a *BFFMensajeriaEnProceso) MarcarAtendida(context.Context, string, msgclient.Id, msgclient.VersionEsperadaEntrada) error {
-	return sinRutaEnMensajeria("MarcarAtendida")
+func (a *BFFMensajeriaEnProceso) MarcarAtendida(ctx context.Context, _ string, conversacionID msgclient.Id, body msgclient.VersionEsperadaEntrada) error {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	if err := a.conv.MarcarAtendida(ctx, conversacionID, body); err != nil {
+		return traducirErrorMensajeria(ctx, "MarcarAtendida", err)
+	}
+	return nil
 }
 
-// RegistrarReciboEntregado: misma paridad con el 404 del carril HTTP.
-//
-// shortcut: mensajeria no tiene caso de uso de recibo entregado; cuando exista, reenviar a ConversacionesAPI
-func (a *BFFMensajeriaEnProceso) RegistrarReciboEntregado(context.Context, string, msgclient.Id, msgclient.ReciboEntrada) error {
-	return sinRutaEnMensajeria("RegistrarReciboEntregado")
+func (a *BFFMensajeriaEnProceso) RegistrarReciboEntregado(ctx context.Context, _ string, conversacionID msgclient.Id, body msgclient.ReciboEntrada) error {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	if err := a.conv.RegistrarReciboEntregado(ctx, conversacionID, body); err != nil {
+		return traducirErrorMensajeria(ctx, "RegistrarReciboEntregado", err)
+	}
+	return nil
 }
 
-// RegistrarReciboLeido: misma paridad con el 404 del carril HTTP.
-//
-// shortcut: mensajeria no tiene caso de uso de recibo leído; cuando exista, reenviar a ConversacionesAPI
-func (a *BFFMensajeriaEnProceso) RegistrarReciboLeido(context.Context, string, msgclient.Id, msgclient.ReciboEntrada) error {
-	return sinRutaEnMensajeria("RegistrarReciboLeido")
-}
-
-// sinRutaEnMensajeria reproduce el error que errores.DeStatus(op, 404) de bff
-// (paquete internal, no importable) produce ante el 404 de mensajeria.
-func sinRutaEnMensajeria(op string) error {
-	return platformerrors.NewNoEncontrado("bff: %s: no encontrado aguas abajo", op)
+func (a *BFFMensajeriaEnProceso) RegistrarReciboLeido(ctx context.Context, _ string, conversacionID msgclient.Id, body msgclient.ReciboEntrada) error {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	if err := a.conv.RegistrarReciboLeido(ctx, conversacionID, body); err != nil {
+		return traducirErrorMensajeria(ctx, "RegistrarReciboLeido", err)
+	}
+	return nil
 }
 
 // traducirErrorMensajeria mantiene la taxonomía del adaptador HTTP de bff: un

@@ -10,11 +10,11 @@ go 1.27
 require (
 	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.31
 	github.com/AI27-Tech/pf-pkg-platform-go v0.1.8
-	github.com/AI27-Tech/pf-svc-bff v0.1.12
+	github.com/AI27-Tech/pf-svc-bff v0.1.13
 	github.com/AI27-Tech/pf-svc-catalogos v0.1.3
 	github.com/AI27-Tech/pf-svc-identidad v0.1.2
-	github.com/AI27-Tech/pf-svc-mensajeria v0.1.2
-	github.com/AI27-Tech/pf-svc-operacion v0.1.13
+	github.com/AI27-Tech/pf-svc-mensajeria v0.1.3
+	github.com/AI27-Tech/pf-svc-operacion v0.1.14
 	github.com/AI27-Tech/pf-svc-reportes v0.1.2
 	github.com/jackc/pgx/v5 v5.11.0
 )

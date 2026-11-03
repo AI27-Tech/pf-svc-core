@@ -141,3 +141,104 @@ func traducirErrorOperacion(ctx context.Context, op string, err error) error {
 	}
 	return err
 }
+
+// --- Flujo interno del panel (bff como única puerta pública) ---------------
+// Cada método reenvía al de operacion.Consultas() con el mismo presupuesto y la
+// misma traducción de error que los anteriores. El actor (sujeto o rol) lo lee
+// operacion de los claims del ctx.
+
+// FijarEta reenvía la captura manual del ETA (ADR 20).
+func (a *BFFOperacionEnProceso) FijarEta(ctx context.Context, id opclient.Id, body opclient.EtaEntrada) (*opclient.Viaje, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.FijarEta(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "FijarEta", err)
+	}
+	return out, nil
+}
+
+// AsignarRecursos reenvía la reserva atómica de la escolta (ADR 31).
+func (a *BFFOperacionEnProceso) AsignarRecursos(ctx context.Context, id opclient.Id, body opclient.AsignacionEntrada) (*opclient.Asignacion, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.AsignarRecursos(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "AsignarRecursos", err)
+	}
+	return out, nil
+}
+
+// RegistrarEntradaBitacora reenvía una entrada append-only de bitácora.
+func (a *BFFOperacionEnProceso) RegistrarEntradaBitacora(ctx context.Context, id opclient.Id, body opclient.EntradaBitacoraEntrada) (*opclient.EntradaBitacora, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.RegistrarEntradaBitacora(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "RegistrarEntradaBitacora", err)
+	}
+	return out, nil
+}
+
+// AbrirIncidencia reenvía la apertura de la condición INCIDENCIA.
+func (a *BFFOperacionEnProceso) AbrirIncidencia(ctx context.Context, id opclient.Id, body opclient.IncidenciaEntrada) (*opclient.Incidencia, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.AbrirIncidencia(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "AbrirIncidencia", err)
+	}
+	return out, nil
+}
+
+// ResolverIncidencia reenvía la resolución de una incidencia.
+func (a *BFFOperacionEnProceso) ResolverIncidencia(ctx context.Context, id, iid opclient.Id, body opclient.ResolucionIncidenciaEntrada) (*opclient.Incidencia, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ResolverIncidencia(ctx, id, iid, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ResolverIncidencia", err)
+	}
+	return out, nil
+}
+
+// ListarEstadias lee UNA página de estadías del viaje.
+func (a *BFFOperacionEnProceso) ListarEstadias(ctx context.Context, id opclient.Id, params opclient.ListarEstadiasParams) (*opclient.PaginaEstadias, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ListarEstadias(ctx, id, params)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ListarEstadias", err)
+	}
+	return out, nil
+}
+
+// AbrirEstadia reenvía la apertura de una estadía.
+func (a *BFFOperacionEnProceso) AbrirEstadia(ctx context.Context, id opclient.Id, body opclient.EstadiaEntrada) (*opclient.Estadia, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.AbrirEstadia(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "AbrirEstadia", err)
+	}
+	return out, nil
+}
+
+// CerrarEstadia reenvía el cierre de una estadía.
+func (a *BFFOperacionEnProceso) CerrarEstadia(ctx context.Context, id, eid opclient.Id) (*opclient.Estadia, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.CerrarEstadia(ctx, id, eid)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "CerrarEstadia", err)
+	}
+	return out, nil
+}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -111,4 +113,44 @@ func contieneSubcadena(xs []string, sub string) bool {
 		}
 	}
 	return false
+}
+
+// TestMontarRutasBFFGanaSinPanic: con los módulos reales, montar las rutas no
+// hace panic aunque bff y un módulo publiquen el mismo patrón (p. ej. GET
+// /api/v1/clientes de catalogos, POST .../transiciones de operacion, la bandeja
+// de mensajeria). bff atiende esos patrones en el mux público; lo que bff no
+// sirve llega al módulo por el mux interno.
+func TestMontarRutasBFFGanaSinPanic(t *testing.T) {
+	b := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	modules, _, err := construirModulos(pools{}, b, b, b, autenticadorNulo{}, logger)
+	if err != nil {
+		t.Fatalf("construirModulos: %v", err)
+	}
+	publico := http.NewServeMux()
+	montarRutas(publico, modules)
+
+	casos := []struct{ metodo, ruta, patron string }{
+		{"GET", "/api/v1/clientes", "GET /api/v1/clientes"},
+		{"POST", "/api/v1/viajes/x/transiciones", "POST /api/v1/viajes/{id}/transiciones"},
+		{"GET", "/api/v1/catalogos/tipos-servicio", "GET /api/v1/catalogos/tipos-servicio"},
+		{"GET", "/api/v1/bandeja/trabajo", "GET /api/v1/bandeja/trabajo"},
+		{"POST", "/api/v1/conversaciones/x/atendida", "POST /api/v1/conversaciones/{id}/atendida"},
+		// Solo operacion la sirve: cae al mux interno.
+		{"POST", "/api/v1/viajes/x/asignacion", "/"},
+	}
+	for _, c := range casos {
+		_, patron := publico.Handler(httptest.NewRequest(c.metodo, c.ruta, nil))
+		if patron != c.patron {
+			t.Errorf("%s %s: patrón = %q; se esperaba %q", c.metodo, c.ruta, patron, c.patron)
+		}
+	}
+
+	// La ruta exclusiva de operacion llega a operacion (su middleware responde
+	// 401 sin token), no a un 404 del mux.
+	rec := httptest.NewRecorder()
+	publico.ServeHTTP(rec, httptest.NewRequest("POST", "/api/v1/viajes/x/asignacion", nil))
+	if rec.Code == http.StatusNotFound {
+		t.Fatalf("POST /api/v1/viajes/x/asignacion = 404; no llegó a operacion")
+	}
 }

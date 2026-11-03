@@ -77,6 +77,36 @@ func (f *operacionFake) RegistrarDescargaViaje(ctx context.Context, _ opclient.I
 	return &opclient.Viaje{}, nil
 }
 
+func (f *operacionFake) TransicionarViaje(ctx context.Context, _ opclient.Id, body opclient.TransicionEntrada) (*opclient.Viaje, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Viaje{Estado: body.AEstado}, nil
+}
+
+// TestBFFOperacionTransicionarViaje: la transición llega a operacion y su
+// resultado (o su conflicto de máquina de estados) vuelve tal cual al bff.
+func TestBFFOperacionTransicionarViaje(t *testing.T) {
+	ad := NewBFFOperacion(&operacionFake{})
+	out, err := ad.TransicionarViaje(context.Background(), opclient.Id{}, opclient.TransicionEntrada{AEstado: opclient.APROBADO})
+	if err != nil {
+		t.Fatalf("no se esperaba error: %v", err)
+	}
+	if out.Estado != opclient.APROBADO {
+		t.Fatalf("estado = %v; se esperaba APROBADO", out.Estado)
+	}
+
+	conflicto := platformerrors.NewConflictoCodigo("transicion_invalida", "operacion: arista no permitida")
+	ad = NewBFFOperacion(&operacionFake{err: conflicto})
+	_, err = ad.TransicionarViaje(context.Background(), opclient.Id{}, opclient.TransicionEntrada{AEstado: opclient.ENDESTINO})
+	if got := platformerrors.AsCategory(err); got != platformerrors.CategoryConflicto {
+		t.Fatalf("categoría = %v; se esperaba Conflicto", got)
+	}
+	if got := platformerrors.CodigoDe(err); got != "transicion_invalida" {
+		t.Fatalf("código = %q; se esperaba transicion_invalida", got)
+	}
+}
+
 // TestBFFOperacionImponeElMismoPresupuesto: el adaptador aplica el deadline
 // bff.PresupuestoOperacion al contexto que recibe operacion (I3, obligación 1).
 func TestBFFOperacionImponeElMismoPresupuesto(t *testing.T) {

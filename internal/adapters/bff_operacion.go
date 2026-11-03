@@ -117,6 +117,20 @@ func (a *BFFOperacionEnProceso) RegistrarDescargaViaje(ctx context.Context, id o
 	return out, nil
 }
 
+// TransicionarViaje reenvía una transición de estado (E9-T7 cliente, E8-T14
+// interna). operacion es la única autoridad: valida la arista, el tenant y la
+// facultad con los claims del ctx; bff no decide.
+func (a *BFFOperacionEnProceso) TransicionarViaje(ctx context.Context, id opclient.Id, body opclient.TransicionEntrada) (*opclient.Viaje, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.TransicionarViaje(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "TransicionarViaje", err)
+	}
+	return out, nil
+}
+
 // traducirErrorOperacion mantiene la taxonomía del adaptador HTTP de bff: un
 // vencimiento del presupuesto o cancelación del contexto se traduce a Degradado;
 // cualquier otro error de operacion.Consultas() ya es un PlatformError

@@ -55,6 +55,21 @@ func (a *BFFCatalogosEnProceso) ListarClientes(ctx context.Context, _ string, pa
 	return out, nil
 }
 
+// ListarTiposServicio reenvía el listado del catálogo tipos_servicio (selector
+// del wizard de solicitud del cliente, E9-T4) sobre ListarValoresCatalogo con el
+// tipo fijo, como el adaptador HTTP de bff. El filtro a activos lo hace el bff al
+// recortar. bearer se ignora en proceso (los claims ya van en el ctx).
+func (a *BFFCatalogosEnProceso) ListarTiposServicio(ctx context.Context, _ string, params catclient.ListarValoresCatalogoParams) (*catclient.PaginaValoresCatalogo, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, err := a.consultas.ListarValoresCatalogo(ctx, catclient.TiposServicio, params.Cursor)
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "ListarTiposServicio", err)
+	}
+	return out, nil
+}
+
 // traducirErrorBFFCatalogos mantiene la taxonomía del adaptador HTTP de bff: un
 // vencimiento del presupuesto o cancelación del contexto se traduce a Degradado;
 // cualquier otro error de catalogos.Consultas() ya es un PlatformError

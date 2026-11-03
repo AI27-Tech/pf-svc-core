@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-11-02 17:10 CST — Componer bff v0.1.12 (tracer.31) y arrancar sin choque de rutas
+
+**Resumen:** core sube bff a v0.1.12 y cablea en proceso los puertos nuevos: transición de viaje, tipos de servicio y la conversación/bandeja de mensajeria. Además corrige un panic de arranque que ya existía en `pf-core-d`: el binario compuesto no llegaba a `/ready`.
+
+**Para quién:** para el binario de la demo (DEC-088). Con esto corren en core la transición interna (E8-T14) y del cliente (E9-T7), el selector de tipos de servicio (E9-T4), la conversación del cliente (E9-T8) y la bandeja interna (E8-T15).
+
+**Cambios:**
+- `go.mod`/`go.sum`: bff `v0.1.4→v0.1.12`; operacion `v0.1.8→v0.1.13` (fachada `TransicionarViaje`, PR #71); mensajeria `v0.1.0→v0.1.2` (fachada `ConversacionesAPI`, PR #33); por MVS `api-client-go` `tracer.21→tracer.31` y platform-go `v0.1.6→v0.1.8`. catalogos sigue en v0.1.3. Sin renombres de enum (§8).
+- `internal/adapters/bff_operacion.go`: `TransicionarViaje` sobre `Consultas().TransicionarViaje`.
+- `internal/adapters/bff_catalogos.go`: `ListarTiposServicio` sobre `ListarValoresCatalogo` con `catclient.TiposServicio` fijo, mismo presupuesto y traducción que `ListarClientes`.
+- `internal/adapters/bff_mensajeria.go`: el adaptador también recibe `mensajeria.ConversacionesAPI` (cambia `NewBFFMensajeria`). Agrega los 10 métodos de conversación y bandeja. `MarcarAtendida`, `RegistrarReciboEntregado` y `RegistrarReciboLeido` devuelven el mismo `NoEncontrado` que el adaptador HTTP de bff traduce del 404 de mensajeria (mensajeria no tiene esos casos de uso). Los ids pasan sin cambio, igual que por HTTP.
+- `cmd/core/main.go`: `montarRutas` monta bff en el mux público y el resto de los módulos en un mux interno al que el público delega. Antes todo iba a un solo mux y los patrones repetidos (bff vs catalogos `GET /api/v1/clientes`; vs operacion `POST .../transiciones`; vs mensajeria conversación/bandeja/emergencias) hacían panic al arrancar.
+- `.github/workflows/ci.yml`: arch-test `v0.1.7→v0.1.8`, la misma versión de platform-go que ahora fija `go.mod`.
+- Tests: `bff_catalogos_test.go` y `bff_mensajeria_test.go` (nuevos), `TestBFFOperacionTransicionarViaje`, `TestMontarRutasBFFGanaSinPanic`.
+
+**Verificación:** `gofmt` limpio; `go build/vet/test ./...` con y sin `-tags devauth`; devauth ausente del build de producción; `arch-test` v0.1.7 y v0.1.8 OK. Smoke con el arnés gate-g2 (Postgres + `cmd/migrate` + NATS, auth real con jwtmint): `/ready` 200, crear viaje 201, transición interna 200 (a CANCELADO) y 409 (arista inválida), tipos de servicio 200, bandeja 404 de mensajeria (sujeto sin pool), atendida/recibo 404.
+
 ## 2026-10-28 — tracer.21: subir el pin de contrato
 
 **Resumen:** se sube el pin de `pf-pkg-contracts` de `v0.1.0-tracer.20` a `v0.1.0-tracer.21`. Aditivo (ficha técnica E8-T12 / histórico E8-T13); los módulos que `core` compone no cambian su superficie. Solo `go.mod`/`go.sum`.

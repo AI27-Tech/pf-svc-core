@@ -15,6 +15,9 @@ type conversacionesFake struct {
 	mensajeria.ConversacionesAPI
 	err     error
 	idVisto msgclient.Id
+	// llamada registra qué método de atención/recibos se invocó y con qué cuerpo.
+	llamada string
+	cuerpo  any
 }
 
 func (f *conversacionesFake) EnviarMensaje(_ context.Context, id msgclient.Id, body msgclient.EnviarMensajeEntrada) (*msgclient.Mensaje, error) {
@@ -30,6 +33,21 @@ func (f *conversacionesFake) ListarTrabajoBandeja(context.Context, msgclient.Lis
 		return nil, f.err
 	}
 	return &msgclient.TrabajoBandeja{}, nil
+}
+
+func (f *conversacionesFake) MarcarAtendida(_ context.Context, id msgclient.Id, body msgclient.VersionEsperadaEntrada) error {
+	f.idVisto, f.llamada, f.cuerpo = id, "MarcarAtendida", body
+	return f.err
+}
+
+func (f *conversacionesFake) RegistrarReciboEntregado(_ context.Context, id msgclient.Id, body msgclient.ReciboEntrada) error {
+	f.idVisto, f.llamada, f.cuerpo = id, "RegistrarReciboEntregado", body
+	return f.err
+}
+
+func (f *conversacionesFake) RegistrarReciboLeido(_ context.Context, id msgclient.Id, body msgclient.ReciboEntrada) error {
+	f.idVisto, f.llamada, f.cuerpo = id, "RegistrarReciboLeido", body
+	return f.err
 }
 
 // TestBFFMensajeriaConversacion: EnviarMensaje llega a mensajeria con el id sin
@@ -54,23 +72,37 @@ func TestBFFMensajeriaConversacion(t *testing.T) {
 	}
 }
 
-// TestBFFMensajeriaSinRutaDevuelveNoEncontrado: atendida y recibos no tienen
-// caso de uso en mensajeria; en proceso devuelven NoEncontrado, lo mismo que el
-// adaptador HTTP de bff traduce del 404 de mensajeria.
-func TestBFFMensajeriaSinRutaDevuelveNoEncontrado(t *testing.T) {
-	ad := NewBFFMensajeria(nil, nil)
+// TestBFFMensajeriaAtencionYRecibos: atendida y recibos se reenvían a
+// mensajeria.ConversacionesAPI con id y cuerpo sin cambio, y el error categorizado
+// de mensajeria se propaga tal cual.
+func TestBFFMensajeriaAtencionYRecibos(t *testing.T) {
 	ctx := context.Background()
-	casos := map[string]error{
-		"MarcarAtendida":           ad.MarcarAtendida(ctx, "", msgclient.Id{}, msgclient.VersionEsperadaEntrada{}),
-		"RegistrarReciboEntregado": ad.RegistrarReciboEntregado(ctx, "", msgclient.Id{}, msgclient.ReciboEntrada{}),
-		"RegistrarReciboLeido":     ad.RegistrarReciboLeido(ctx, "", msgclient.Id{}, msgclient.ReciboEntrada{}),
+	id := msgclient.Id{7}
+	version := msgclient.VersionEsperadaEntrada{VersionEsperada: 3}
+	recibo := msgclient.ReciboEntrada{HastaSecuencia: 5}
+	casos := []struct {
+		op     string
+		cuerpo any
+		llamar func(*BFFMensajeriaEnProceso) error
+	}{
+		{"MarcarAtendida", version, func(ad *BFFMensajeriaEnProceso) error { return ad.MarcarAtendida(ctx, "", id, version) }},
+		{"RegistrarReciboEntregado", recibo, func(ad *BFFMensajeriaEnProceso) error { return ad.RegistrarReciboEntregado(ctx, "", id, recibo) }},
+		{"RegistrarReciboLeido", recibo, func(ad *BFFMensajeriaEnProceso) error { return ad.RegistrarReciboLeido(ctx, "", id, recibo) }},
 	}
-	for op, err := range casos {
-		if got := platformerrors.AsCategory(err); got != platformerrors.CategoryNoEncontrado {
-			t.Errorf("%s: categoría = %v; se esperaba NoEncontrado", op, got)
-		}
-		if want := "bff: " + op + ": no encontrado aguas abajo"; err == nil || err.Error() != want {
-			t.Errorf("%s: error = %v; se esperaba %q", op, err, want)
-		}
+	for _, c := range casos {
+		t.Run(c.op, func(t *testing.T) {
+			fake := &conversacionesFake{}
+			if err := c.llamar(NewBFFMensajeria(nil, fake)); err != nil {
+				t.Fatalf("no se esperaba error: %v", err)
+			}
+			if fake.llamada != c.op || fake.idVisto != id || fake.cuerpo != c.cuerpo {
+				t.Fatalf("llamada = %q id = %v cuerpo = %+v; se esperaba %s sobre %v con %+v", fake.llamada, fake.idVisto, fake.cuerpo, c.op, id, c.cuerpo)
+			}
+
+			conflicto := platformerrors.NewConflicto("mensajeria: versión obsoleta")
+			if err := c.llamar(NewBFFMensajeria(nil, &conversacionesFake{err: conflicto})); err != conflicto {
+				t.Fatalf("error = %v; se esperaba el conflicto de mensajeria sin cambio", err)
+			}
+		})
 	}
 }

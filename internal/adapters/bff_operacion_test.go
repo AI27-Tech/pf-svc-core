@@ -189,3 +189,117 @@ func TestBFFOperacionPropagaErrorDeContrato(t *testing.T) {
 		})
 	}
 }
+
+func (f *operacionFake) FijarEta(ctx context.Context, _ opclient.Id, _ opclient.EtaEntrada) (*opclient.Viaje, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Viaje{}, nil
+}
+
+func (f *operacionFake) AsignarRecursos(ctx context.Context, _ opclient.Id, _ opclient.AsignacionEntrada) (*opclient.Asignacion, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Asignacion{}, nil
+}
+
+func (f *operacionFake) RegistrarEntradaBitacora(ctx context.Context, _ opclient.Id, _ opclient.EntradaBitacoraEntrada) (*opclient.EntradaBitacora, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.EntradaBitacora{}, nil
+}
+
+func (f *operacionFake) AbrirIncidencia(ctx context.Context, _ opclient.Id, _ opclient.IncidenciaEntrada) (*opclient.Incidencia, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Incidencia{}, nil
+}
+
+func (f *operacionFake) ResolverIncidencia(ctx context.Context, _, _ opclient.Id, _ opclient.ResolucionIncidenciaEntrada) (*opclient.Incidencia, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Incidencia{}, nil
+}
+
+func (f *operacionFake) ListarEstadias(ctx context.Context, _ opclient.Id, _ opclient.ListarEstadiasParams) (*opclient.PaginaEstadias, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.PaginaEstadias{}, nil
+}
+
+func (f *operacionFake) AbrirEstadia(ctx context.Context, _ opclient.Id, _ opclient.EstadiaEntrada) (*opclient.Estadia, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Estadia{}, nil
+}
+
+func (f *operacionFake) CerrarEstadia(ctx context.Context, _, _ opclient.Id) (*opclient.Estadia, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Estadia{}, nil
+}
+
+// TestBFFOperacionFlujoInterno: cada método del flujo interno impone el
+// presupuesto de operacion y propaga el conflicto con su código de máquina,
+// como el adaptador HTTP de bff (I3).
+func TestBFFOperacionFlujoInterno(t *testing.T) {
+	id := opclient.Id{}
+	llamadas := map[string]func(*BFFOperacionEnProceso, context.Context) error{
+		"FijarEta": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.FijarEta(ctx, id, opclient.EtaEntrada{})
+			return err
+		},
+		"AsignarRecursos": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.AsignarRecursos(ctx, id, opclient.AsignacionEntrada{})
+			return err
+		},
+		"RegistrarEntradaBitacora": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.RegistrarEntradaBitacora(ctx, id, opclient.EntradaBitacoraEntrada{})
+			return err
+		},
+		"AbrirIncidencia": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.AbrirIncidencia(ctx, id, opclient.IncidenciaEntrada{})
+			return err
+		},
+		"ResolverIncidencia": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ResolverIncidencia(ctx, id, id, opclient.ResolucionIncidenciaEntrada{})
+			return err
+		},
+		"ListarEstadias": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ListarEstadias(ctx, id, opclient.ListarEstadiasParams{})
+			return err
+		},
+		"AbrirEstadia": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.AbrirEstadia(ctx, id, opclient.EstadiaEntrada{})
+			return err
+		},
+		"CerrarEstadia": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.CerrarEstadia(ctx, id, id)
+			return err
+		},
+	}
+	for nombre, llamar := range llamadas {
+		t.Run(nombre, func(t *testing.T) {
+			fake := &operacionFake{}
+			if err := llamar(NewBFFOperacion(fake), context.Background()); err != nil {
+				t.Fatalf("no se esperaba error: %v", err)
+			}
+			if dl, ok := fake.ctxVisto.Deadline(); !ok || time.Until(dl) > bff.PresupuestoOperacion {
+				t.Fatalf("deadline ausente o fuera del presupuesto (ok=%v)", ok)
+			}
+
+			fake = &operacionFake{err: platformerrors.NewConflictoCodigo("recurso_no_disponible", "operacion: unidad ocupada")}
+			err := llamar(NewBFFOperacion(fake), context.Background())
+			if got := platformerrors.CodigoDe(err); got != "recurso_no_disponible" {
+				t.Fatalf("código = %q (err %v); se esperaba recurso_no_disponible", got, err)
+			}
+		})
+	}
+}

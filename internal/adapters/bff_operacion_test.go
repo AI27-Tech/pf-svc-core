@@ -246,6 +246,27 @@ func (f *operacionFake) CerrarEstadia(ctx context.Context, _, _ opclient.Id) (*o
 	return &opclient.Estadia{}, nil
 }
 
+func (f *operacionFake) ListarAdjuntos(ctx context.Context, _ opclient.Id) (*opclient.PaginaAdjuntos, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.PaginaAdjuntos{}, nil
+}
+
+func (f *operacionFake) CrearIntencionSubidaAdjunto(ctx context.Context, _ opclient.Id, _ opclient.IntencionSubidaAdjuntoEntrada) (*opclient.IntencionSubidaAdjunto, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.IntencionSubidaAdjunto{}, nil
+}
+
+func (f *operacionFake) DescargarAdjunto(ctx context.Context, _, _ opclient.Id) (*opclient.DescargaAdjunto, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.DescargaAdjunto{}, nil
+}
+
 // TestBFFOperacionFlujoInterno: cada método del flujo interno impone el
 // presupuesto de operacion y propaga el conflicto con su código de máquina,
 // como el adaptador HTTP de bff (I3).

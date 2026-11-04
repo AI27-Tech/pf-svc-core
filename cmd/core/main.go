@@ -288,21 +288,20 @@ func abrirBus(natsURL string) (busCableado, func(), error) {
 	return busCableado{conexion: conexion, durable: durable}, cerrar, nil
 }
 
-// montarRutas monta las rutas de los módulos con bff como puerta única: bff va en
-// el mux público y gana; el resto monta en un mux interno al que el público
-// delega lo que bff no sirve. Los módulos publican también las rutas que bff
-// proxea (su modo standalone); en un solo mux esos patrones repetidos hacen
-// panic al arrancar. Un choque entre dos módulos no-bff sigue haciendo panic.
+// montarRutas monta en el mux público SOLO las rutas de bff: bff es la única
+// puerta pública (decisión del Lead, 2026-11-04). Las Routes de los demás módulos
+// no se llaman: su superficie HTTP es la de su modo standalone (cmd/api) y en
+// core se consume en proceso por Consultas(). Antes iban a un mux interno al que
+// el público caía por "/", y así una ruta nativa sin guarda de bff (p. ej. POST
+// /api/v1/vehiculos de catalogos) quedaba expuesta. Routes no tiene efectos
+// laterales en esos módulos (solo arma handlers); sus Workers se recolectan
+// aparte en run(). identidad monta aparte (ver run()).
 func montarRutas(publico *http.ServeMux, modules []module) {
-	internos := http.NewServeMux()
 	for _, m := range modules {
 		if _, esBFF := m.(*bff.Module); esBFF {
 			m.Routes(publico)
-			continue
 		}
-		m.Routes(internos)
 	}
-	publico.Handle("/", internos)
 }
 
 // construirModulos construye y devuelve los módulos de `core` que existan hoy.

@@ -70,6 +70,19 @@ func (a *BFFCatalogosEnProceso) ListarTiposServicio(ctx context.Context, _ strin
 	return out, nil
 }
 
+// ListarGps reenvía el listado de dispositivos GPS activos (selector de la ficha
+// técnica, E8-T12). Como ListarClientes, catalogos toma solo el cursor.
+func (a *BFFCatalogosEnProceso) ListarGps(ctx context.Context, _ string, params catclient.ListarGpsParams) (*catclient.PaginaGps, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, err := a.consultas.ListarGps(ctx, params.Cursor)
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "ListarGps", err)
+	}
+	return out, nil
+}
+
 // traducirErrorBFFCatalogos mantiene la taxonomía del adaptador HTTP de bff: un
 // vencimiento del presupuesto o cancelación del contexto se traduce a Degradado;
 // cualquier otro error de catalogos.Consultas() ya es un PlatformError

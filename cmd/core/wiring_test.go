@@ -115,12 +115,61 @@ func contieneSubcadena(xs []string, sub string) bool {
 	return false
 }
 
-// TestMontarRutasBFFGanaSinPanic: con los módulos reales, montar las rutas no
-// hace panic aunque bff y un módulo publiquen el mismo patrón (p. ej. GET
-// /api/v1/clientes de catalogos, POST .../transiciones de operacion, la bandeja
-// de mensajeria). bff atiende esos patrones en el mux público; lo que bff no
-// sirve llega al módulo por el mux interno.
-func TestMontarRutasBFFGanaSinPanic(t *testing.T) {
+// TestMontarRutasSoloBFF: con los módulos reales, montar las rutas no hace panic
+// y el mux público sirve solo los patrones de bff (única puerta pública). bff y
+// los módulos publican patrones repetidos (GET /api/v1/clientes, POST
+// .../transiciones, la bandeja); como solo bff monta, no chocan.
+func TestMontarRutasSoloBFF(t *testing.T) {
+	publico := muxPublico(t)
+
+	casos := []struct{ metodo, ruta, patron string }{
+		{"GET", "/api/v1/clientes", "GET /api/v1/clientes"},
+		{"POST", "/api/v1/viajes/x/transiciones", "POST /api/v1/viajes/{id}/transiciones"},
+		{"GET", "/api/v1/catalogos/tipos-servicio", "GET /api/v1/catalogos/tipos-servicio"},
+		{"GET", "/api/v1/bandeja/trabajo", "GET /api/v1/bandeja/trabajo"},
+		{"POST", "/api/v1/conversaciones/x/atendida", "POST /api/v1/conversaciones/{id}/atendida"},
+		{"POST", "/api/v1/viajes/x/asignacion", "POST /api/v1/viajes/{id}/asignacion"},
+		{"GET", "/api/v1/viajes/x/detalle", "GET /api/v1/viajes/{id}/detalle"},
+		// Flujo interno, grupo 2: ya lo sirve bff.
+		{"GET", "/api/v1/unidades", "GET /api/v1/unidades"},
+		{"PATCH", "/api/v1/viajes/x/fecha-hora", "PATCH /api/v1/viajes/{id}/fecha-hora"},
+		{"GET", "/api/v1/viajes/x/incidencias", "GET /api/v1/viajes/{id}/incidencias"},
+		{"GET", "/api/v1/viajes/x/ficha", "GET /api/v1/viajes/{id}/ficha"},
+		{"PATCH", "/api/v1/viajes/x/ficha", "PATCH /api/v1/viajes/{id}/ficha"},
+		{"GET", "/api/v1/gps", "GET /api/v1/gps"},
+	}
+	for _, c := range casos {
+		_, patron := publico.Handler(httptest.NewRequest(c.metodo, c.ruta, nil))
+		if patron != c.patron {
+			t.Errorf("%s %s: patrón = %q; se esperaba %q", c.metodo, c.ruta, patron, c.patron)
+		}
+	}
+}
+
+// TestRutaNativaSinBFFEs404: una ruta nativa de un módulo que bff no sirve ya no
+// es pública. Antes caía al mux interno y llegaba al módulo; ahora el mux público
+// responde 404 sin tocarlo.
+func TestRutaNativaSinBFFEs404(t *testing.T) {
+	publico := muxPublico(t)
+
+	nativas := []struct{ metodo, ruta string }{
+		{"POST", "/api/v1/viajes/00000000-0000-0000-0000-000000000000/descargas"}, // operacion: registrarDescargaViaje
+		{"POST", "/api/v1/vehiculos"},                    // catalogos: alta de vehículo
+		{"GET", "/api/v1/custodios"},                     // catalogos: listado de custodios
+		{"GET", "/api/v1/catalogos-tipo/tipos_servicio"}, // catalogos: valores por tipo
+	}
+	for _, n := range nativas {
+		rec := httptest.NewRecorder()
+		publico.ServeHTTP(rec, httptest.NewRequest(n.metodo, n.ruta, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s %s = %d; se esperaba 404 (no es ruta de bff)", n.metodo, n.ruta, rec.Code)
+		}
+	}
+}
+
+// muxPublico construye los módulos reales y monta sus rutas como run().
+func muxPublico(t *testing.T) *http.ServeMux {
+	t.Helper()
 	b := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	modules, _, err := construirModulos(pools{}, b, b, b, autenticadorNulo{}, logger)
@@ -129,31 +178,5 @@ func TestMontarRutasBFFGanaSinPanic(t *testing.T) {
 	}
 	publico := http.NewServeMux()
 	montarRutas(publico, modules)
-
-	casos := []struct{ metodo, ruta, patron string }{
-		{"GET", "/api/v1/clientes", "GET /api/v1/clientes"},
-		{"POST", "/api/v1/viajes/x/transiciones", "POST /api/v1/viajes/{id}/transiciones"},
-		{"GET", "/api/v1/catalogos/tipos-servicio", "GET /api/v1/catalogos/tipos-servicio"},
-		{"GET", "/api/v1/bandeja/trabajo", "GET /api/v1/bandeja/trabajo"},
-		{"POST", "/api/v1/conversaciones/x/atendida", "POST /api/v1/conversaciones/{id}/atendida"},
-		// El flujo interno del panel ya lo sirve bff (única puerta pública).
-		{"POST", "/api/v1/viajes/x/asignacion", "POST /api/v1/viajes/{id}/asignacion"},
-		{"GET", "/api/v1/viajes/x/detalle", "GET /api/v1/viajes/{id}/detalle"},
-		// Solo operacion la sirve (reasignar): cae al mux interno.
-		{"PATCH", "/api/v1/viajes/x/asignacion", "/"},
-	}
-	for _, c := range casos {
-		_, patron := publico.Handler(httptest.NewRequest(c.metodo, c.ruta, nil))
-		if patron != c.patron {
-			t.Errorf("%s %s: patrón = %q; se esperaba %q", c.metodo, c.ruta, patron, c.patron)
-		}
-	}
-
-	// La ruta exclusiva de operacion llega a operacion (su middleware responde
-	// 401 sin token), no a un 404 del mux.
-	rec := httptest.NewRecorder()
-	publico.ServeHTTP(rec, httptest.NewRequest("PATCH", "/api/v1/viajes/x/asignacion", nil))
-	if rec.Code == http.StatusNotFound || rec.Code == http.StatusMethodNotAllowed {
-		t.Fatalf("PATCH /api/v1/viajes/x/asignacion = %d; no llegó a operacion", rec.Code)
-	}
+	return publico
 }

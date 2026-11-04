@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-11-04 18:45 — Grupo 2 del flujo interno compuesto en proceso y el bff como única puerta pública
+
+**Para quién:** el panel interno y el portal cliente. En `core`, el panel ya lee el roster, completa la fecha/hora, lee el histórico de incidencias, lee y guarda la ficha técnica y lista los GPS, todo por el `bff`. Cambia también qué responde el servidor público: una ruta nativa de un módulo que el `bff` no sirve (por ejemplo `POST /api/v1/vehiculos` de `catalogos` o `POST /api/v1/viajes/{id}/descargas` de `operacion`) ahora es 404. Antes llegaba al módulo sin las guardas del `bff`.
+
+**Resumen:** sube los pins a los publicados del grupo 2 y cablea los 6 métodos nuevos de los puertos del `bff` en los adaptadores en proceso. Cierra la caída de `montarRutas` al mux interno (decisión del Lead: el `bff` es la única puerta pública).
+
+> **Pin provisional del bff:** `pf-svc-bff` va en la pseudo-versión `v0.0.0-20261104232833-e58cd5da01f4`, el commit de la rama de `pf-svc-bff` PR #74. **Hay que subirlo al tag del bff** cuando #74 se mergee y se publique, antes de mergear este PR.
+
+**Cambios:**
+- `go.mod`/`go.sum`: `pf-svc-operacion` v0.1.16 → v0.1.17; `pf-svc-catalogos` v0.1.3 → v0.1.4; `pf-svc-bff` v0.1.16 → la pseudo-versión de arriba; `pf-pkg-platform-go` v0.1.8 → v0.1.9 (la exige el bff por MVS). Contratos siguen en `tracer.37`. `go build` no pidió renombrar constantes de enum.
+- `internal/adapters/bff_operacion.go`: `ListarUnidades`, `CompletarFechaHora`, `ListarIncidencias`, `ObtenerFicha`, `GuardarFicha` sobre `operacion.Consultas()`, con `bff.PresupuestoOperacion` y `traducirErrorOperacion`. `GuardarFicha` recibe el `&Tracto{}` que el handler del bff ya tradujo de `"tracto": null`.
+- `internal/adapters/bff_catalogos.go`: `ListarGps` sobre `catalogos.Consultas().ListarGps(cursor)`.
+- `cmd/core/main.go`: `montarRutas` solo monta las rutas del `bff`. Las `Routes` de `catalogos`, `operacion`, `reportes` y `mensajeria` ya no se llaman en `core`: solo arman handlers, sin efectos laterales, y sus `Workers` se recolectan aparte. `identidad` sigue montando sus rutas en el mux público (ver notas).
+- `cmd/core/wiring_test.go`: `TestMontarRutasSoloBFF` (los patrones del bff, incluidos los 6 nuevos, sin panic) y `TestRutaNativaSinBFFEs404` (4 rutas nativas dan 404). La segunda falla con el `montarRutas` anterior.
+- `internal/adapters/*_test.go`: los dobles de `ConsultasAPI` suman los métodos nuevos; la tabla de paridad del flujo interno suma 5 casos y `TestBFFCatalogosListarGps` cubre el cursor y la categoría del error.
+
+**Notas:**
+- `identidad` no pasa por `montarRutas` y queda pública como estaba. Los portales no la llaman directo (inician sesión con `POST /api/v1/sesion` del bff). Pero `pf-svc-realtime` (otro deployable) la consulta por HTTP para revocación, y el gate G2 revoca con `DELETE /api/v1/sesiones/{id}`. Cerrarla es decisión aparte.
+
+**Verificación:** `gofmt` limpio, `go vet ./...`, `go build ./...` y `-tags devauth`, `go test -race ./...`, `arch-test` v0.1.8 en verde. Recorrido de la demo sobre el binario real: `/tmp/smoke-recorrido-demo.out`.
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`, `cmd/core/main.go`, `cmd/core/wiring_test.go`, `internal/adapters/bff_operacion.go`, `internal/adapters/bff_operacion_test.go`, `internal/adapters/bff_catalogos.go`, `internal/adapters/bff_catalogos_test.go`, `internal/adapters/aptitud_recursos_test.go`, `internal/adapters/reportes_catalogos_test.go`, `CHANGELOG.md`
+
 ## 2026-11-04 17:05 — Los 409 de mensajeria llegan con su código
 
 **Para quién:** los frontends. Por `core`, un 409 de `mensajeria` deja de llegar como `"conflicto"` y trae el código del contrato (`emergencia_cerrada`, `conflicto_version_reclamo`, `conversacion_solo_lectura`, `stream_resync_required`, `transicion_invalida`).

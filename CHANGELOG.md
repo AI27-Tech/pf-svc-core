@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-11-04 15:40 — Cablear en proceso las emergencias de E8-T18
+
+**Para quién:** quien despliega `core`. Con este cambio, las rutas de emergencias del monitoreo y de la bandeja de Reacción del `bff` llegan a `mensajeria`, `operacion` y `catalogos` en proceso. Sin él, `core` no compilaría contra `bff v0.1.15`.
+
+**Resumen:** los adaptadores en proceso implementan los métodos nuevos de los puertos del `bff` (E8-T18, DEC-135, DEC-121). Se suben los cuatro pins de la ola.
+
+**Cambios:**
+- `internal/adapters/bff_mensajeria.go`: `ActivarEmergencia` pasa la marca de reentrega que ya daba `mensajeria`, para que el `bff` responda 200 y no 201.
+- `internal/adapters/bff_emergencias_por_id.go`: las 8 operaciones por id de la bandeja de Reacción en `BFFMensajeriaEnProceso`; `BFFOperacionEnProceso.ObtenerAsignacion`; `BFFCatalogosEnProceso.ObtenerCliente`, `ObtenerVehiculo` y `ObtenerCustodio` (versión vigente). Mismo presupuesto y traducción de error que el resto de cada adaptador (I3).
+- `internal/adapters/bff_operacion_test.go`: el doble implementa `ObtenerAsignacion` y la prueba de paridad del flujo interno la incluye.
+- `go.mod`: `api-client-go` `v0.1.0-tracer.36` → `v0.1.0-tracer.37`; `pf-svc-bff` `v0.1.14` → `v0.1.15`; `pf-svc-mensajeria` `v0.1.4` → `v0.1.6`; `pf-svc-operacion` `v0.1.15` → `v0.1.16`.
+
+**Archivos modificados:**
+- `internal/adapters/bff_mensajeria.go`, `internal/adapters/bff_emergencias_por_id.go`, `internal/adapters/bff_operacion_test.go`
+- `go.mod`, `go.sum`, `CHANGELOG.md`
+
 ## 2026-11-04 — Cablear en el core compuesto los adjuntos y el dashboard del bff (E8-T17)
 
 **Para quién:** el panel interno (E8-T17). El core compuesto es quien sirve el `bff` en producción; hasta ahora no compilaba contra el `bff` v0.1.14 (que amplió su `OperacionPort` con adjuntos y añadió un `ReportesPort`). Esto cierra el cableado de extremo a extremo: el dashboard y la evidencia responden en el core, no solo en el contrato.

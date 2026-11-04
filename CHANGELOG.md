@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-11-04 17:05 — Los 409 de mensajeria llegan con su código
+
+**Para quién:** los frontends. Por `core`, un 409 de `mensajeria` deja de llegar como `"conflicto"` y trae el código del contrato (`emergencia_cerrada`, `conflicto_version_reclamo`, `conversacion_solo_lectura`, `stream_resync_required`, `transicion_invalida`).
+
+**Resumen:** solo sube pins. `core` ya reenviaba el error de `mensajeria` tal cual; el código faltaba en origen y lo agrega `pf-svc-mensajeria` v0.1.7 (PR #57). `pf-svc-bff` v0.1.16 (PR #69) hace lo mismo en su carril HTTP, que `core` no usa, pero se sube para no quedar atrás.
+
+**Cambios:**
+- `go.mod`: `pf-svc-mensajeria` `v0.1.6` → `v0.1.7`; `pf-svc-bff` `v0.1.15` → `v0.1.16`.
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`, `CHANGELOG.md`
+
 ## 2026-11-04 15:40 — Cablear en proceso las emergencias de E8-T18
 
 **Para quién:** quien despliega `core`. Con este cambio, las rutas de emergencias del monitoreo y de la bandeja de Reacción del `bff` llegan a `mensajeria`, `operacion` y `catalogos` en proceso. Sin él, `core` no compilaría contra `bff v0.1.15`.

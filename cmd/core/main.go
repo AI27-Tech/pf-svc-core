@@ -415,6 +415,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 		Identidad:   adapters.NewBFFIdentidad(idn.Consultas()),
 		Catalogos:   adapters.NewBFFCatalogos(cat.Consultas()),
 		Mensajeria:  adapters.NewBFFMensajeria(msg.Emergencias(), msg.Conversaciones()),
+		Reportes:    adapters.NewBFFReportes(rep.Consultas()),
 		Verificador: autenticador,
 		Broadcaster: broadcaster,
 	})

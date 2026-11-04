@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## 2026-11-04 — Cablear en el core compuesto los adjuntos y el dashboard del bff (E8-T17)
+
+**Para quién:** el panel interno (E8-T17). El core compuesto es quien sirve el `bff` en producción; hasta ahora no compilaba contra el `bff` v0.1.14 (que amplió su `OperacionPort` con adjuntos y añadió un `ReportesPort`). Esto cierra el cableado de extremo a extremo: el dashboard y la evidencia responden en el core, no solo en el contrato.
+
+**Resumen:** sube los pines y cablea las dos aristas nuevas en proceso.
+
+- `BFFOperacionEnProceso` gana `ListarAdjuntos`, `CrearIntencionSubidaAdjunto` y `DescargarAdjunto`, reenviando a `operacion.Consultas()` con el presupuesto de operacion y la misma traducción de error (I3).
+- Nuevo `BFFReportesEnProceso` (`internal/adapters/bff_reportes.go`): el adaptador en proceso de la arista bff → reportes, que antes no existía. `main.go` lo inyecta con `Reportes: adapters.NewBFFReportes(rep.Consultas())` en `bff.New`; `rep` ya se construía antes del `bff`. Conserva `proyeccion_al` y `stale` (DEC-033).
+
+**Pines:** `pf-pkg-contracts` `tracer.33` → `tracer.36`; `pf-svc-bff` `v0.1.13` → `v0.1.14`; `pf-svc-operacion` `v0.1.14` → `v0.1.15`; `pf-svc-reportes` `v0.1.2` → `v0.1.4`. Sin renombres de enum; `go build` limpio.
+
+**Cambios:**
+- `internal/adapters/bff_operacion.go`: tres métodos de adjuntos.
+- `internal/adapters/bff_reportes.go` (nuevo): adaptador en proceso bff → reportes.
+- `cmd/core/main.go`: `Reportes:` en el `bff.New`.
+- `internal/adapters/bff_operacion_test.go`: `operacionFake` gana los tres métodos de adjuntos.
+- `internal/adapters/bff_reportes_test.go` (nuevo): paridad I3 del adaptador de reportes (presupuesto, timeout → Degradado, cancelación, propagación de taxonomía, conservación de frescura).
+- `go.mod`/`go.sum`: los cuatro pines.
+
+**Verificación:** `gofmt` limpio, `go build/vet ./...`, `go build ./cmd/core`, `go build -tags devauth ./...`, `go test ./...` y `arch-test` (v0.1.8) OK. La arista bff → reportes ya estaba declarada en las reglas; arch-test en verde.
+
+**Siguiente (fuera de este PR):** el frontend sube su pin y construye el dashboard y la evidencia; el almacén real de objetos (DT-14) y el escaneo (DT-13) siguen pendientes.
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`, `cmd/core/main.go`
+- `internal/adapters/bff_operacion.go`, `internal/adapters/bff_reportes.go`
+- `internal/adapters/bff_operacion_test.go`, `internal/adapters/bff_reportes_test.go`
+- `CHANGELOG.md`
+
 ## 2026-11-03 11:54 CST — Resolver la conversación del viaje para el portal cliente (E9-T8)
 
 **Resumen:** el adaptador en proceso bff → mensajeria traduce el viaje_id del portal cliente al conversacion_id con `ObtenerConversacionDeViaje` antes de leer o escribir. Antes el portal cliente recibía 404 en `GET/POST /api/v1/viajes/{id}/conversacion[/mensajes]` porque el viaje_id se buscaba como `conversacion.id`.

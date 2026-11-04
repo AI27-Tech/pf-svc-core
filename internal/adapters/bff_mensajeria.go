@@ -63,16 +63,14 @@ func (a *BFFMensajeriaEnProceso) ListarEmergencias(ctx context.Context, _ string
 	return out, nil
 }
 
-func (a *BFFMensajeriaEnProceso) ActivarEmergencia(ctx context.Context, _ string, viajeID msgclient.Id, body msgclient.ActivarEmergenciaEntrada) (*msgclient.CasoEmergencia, error) {
+func (a *BFFMensajeriaEnProceso) ActivarEmergencia(ctx context.Context, _ string, viajeID msgclient.Id, body msgclient.ActivarEmergenciaEntrada) (*msgclient.CasoEmergencia, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
 	defer cancel()
-	// El puerto del bff no transporta la señal de idempotencia (200 vs 201); se
-	// descarta aquí, igual que la perdería una llamada HTTP que solo ve el cuerpo.
-	out, _, err := a.api.ActivarEmergencia(ctx, viajeID, body)
+	out, idempotente, err := a.api.ActivarEmergencia(ctx, viajeID, body)
 	if err != nil {
-		return nil, traducirErrorMensajeria(ctx, "ActivarEmergencia", err)
+		return nil, false, traducirErrorMensajeria(ctx, "ActivarEmergencia", err)
 	}
-	return out, nil
+	return out, idempotente, nil
 }
 
 func (a *BFFMensajeriaEnProceso) AgregarNotaEmergencia(ctx context.Context, _ string, viajeID, emergenciaID msgclient.Id, body msgclient.NotaEmergenciaEntrada) error {

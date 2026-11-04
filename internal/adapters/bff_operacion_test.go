@@ -267,6 +267,13 @@ func (f *operacionFake) DescargarAdjunto(ctx context.Context, _, _ opclient.Id) 
 	return &opclient.DescargaAdjunto{}, nil
 }
 
+func (f *operacionFake) ObtenerAsignacion(ctx context.Context, id opclient.Id) (*opclient.EscoltaVigente, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.EscoltaVigente{ViajeId: id, Unidades: []opclient.Unidad{}}, nil
+}
+
 // TestBFFOperacionFlujoInterno: cada método del flujo interno impone el
 // presupuesto de operacion y propaga el conflicto con su código de máquina,
 // como el adaptador HTTP de bff (I3).
@@ -303,6 +310,10 @@ func TestBFFOperacionFlujoInterno(t *testing.T) {
 		},
 		"CerrarEstadia": func(a *BFFOperacionEnProceso, ctx context.Context) error {
 			_, err := a.CerrarEstadia(ctx, id, id)
+			return err
+		},
+		"ObtenerAsignacion": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ObtenerAsignacion(ctx, id)
 			return err
 		},
 	}

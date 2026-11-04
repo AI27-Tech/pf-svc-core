@@ -242,3 +242,42 @@ func (a *BFFOperacionEnProceso) CerrarEstadia(ctx context.Context, id, eid opcli
 	}
 	return out, nil
 }
+
+// ListarAdjuntos reenvía el listado de metadatos de la evidencia del viaje
+// (E6-T4). No devuelve bytes.
+func (a *BFFOperacionEnProceso) ListarAdjuntos(ctx context.Context, id opclient.Id) (*opclient.PaginaAdjuntos, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ListarAdjuntos(ctx, id)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ListarAdjuntos", err)
+	}
+	return out, nil
+}
+
+// CrearIntencionSubidaAdjunto reenvía la intención de subida; los bytes no pasan
+// por el servicio (URL de vida corta del almacén de objetos).
+func (a *BFFOperacionEnProceso) CrearIntencionSubidaAdjunto(ctx context.Context, id opclient.Id, body opclient.IntencionSubidaAdjuntoEntrada) (*opclient.IntencionSubidaAdjunto, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.CrearIntencionSubidaAdjunto(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "CrearIntencionSubidaAdjunto", err)
+	}
+	return out, nil
+}
+
+// DescargarAdjunto reenvía la autorización de descarga; devuelve una URL de vida
+// corta, no los bytes.
+func (a *BFFOperacionEnProceso) DescargarAdjunto(ctx context.Context, id, aid opclient.Id) (*opclient.DescargaAdjunto, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.DescargarAdjunto(ctx, id, aid)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "DescargarAdjunto", err)
+	}
+	return out, nil
+}

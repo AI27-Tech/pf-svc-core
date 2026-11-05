@@ -137,6 +137,10 @@ func TestMontarRutasSoloBFF(t *testing.T) {
 		{"GET", "/api/v1/viajes/x/ficha", "GET /api/v1/viajes/{id}/ficha"},
 		{"PATCH", "/api/v1/viajes/x/ficha", "PATCH /api/v1/viajes/{id}/ficha"},
 		{"GET", "/api/v1/gps", "GET /api/v1/gps"},
+		// Sesión: la sirve el bff sobre la fachada en proceso de identidad (DEC-137).
+		{"POST", "/api/v1/sesion", "POST /api/v1/sesion"},
+		{"POST", "/api/v1/sesion/refresh", "POST /api/v1/sesion/refresh"},
+		{"DELETE", "/api/v1/sesion", "DELETE /api/v1/sesion"},
 	}
 	for _, c := range casos {
 		_, patron := publico.Handler(httptest.NewRequest(c.metodo, c.ruta, nil))
@@ -157,6 +161,12 @@ func TestRutaNativaSinBFFEs404(t *testing.T) {
 		{"POST", "/api/v1/vehiculos"},                    // catalogos: alta de vehículo
 		{"GET", "/api/v1/custodios"},                     // catalogos: listado de custodios
 		{"GET", "/api/v1/catalogos-tipo/tipos_servicio"}, // catalogos: valores por tipo
+		// identidad tampoco es pública (DEC-137).
+		{"POST", "/api/v1/sesiones"},
+		{"POST", "/api/v1/sesiones/refresh"},
+		{"DELETE", "/api/v1/sesiones/00000000-0000-0000-0000-000000000000"},
+		{"GET", "/api/v1/sesiones/revocadas"},
+		{"GET", "/api/v1/sesiones/00000000-0000-0000-0000-000000000000"},
 	}
 	for _, n := range nativas {
 		rec := httptest.NewRecorder()

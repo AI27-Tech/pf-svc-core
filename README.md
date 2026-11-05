@@ -72,21 +72,52 @@ falten, no solo la primera):
 | `DB_SVC_REPORTES_URL` | `svc_reportes` |
 | `DB_SVC_IDENTIDAD_URL` | `svc_identidad` |
 
-En producción (sin tag), `core` usa el verificador JWT real y exige `JWKS_URL`:
+El proveedor de identidad es **Keycloak** en los dos builds (DEC-095): desde
+`identidad` v0.1.3 el módulo no arranca sin IdP, y su doble en memoria no se
+puede construir desde `core`. Las variables son las del cmd de `identidad`
+(`idpconfig`); `core` falla al arrancar nombrando todas las que falten, sin
+imprimir valores. Cada secreto acepta también la forma `_FILE` (archivo montado):
+
+| Variable | Valor |
+|---|---|
+| `IDENTIDAD_IDP` | `keycloak` |
+| `IDENTIDAD_KEYCLOAK_TOKEN_URL` | `<realm>/protocol/openid-connect/token` (`_REFRESH_URL` opcional, por omisión la misma) |
+| `IDENTIDAD_KEYCLOAK_ADMIN_SESSIONS_URL`, `_ADMIN_USERS_URL`, `_ADMIN_GROUPS_URL` | `<base>/admin/realms/ai27/{sessions,users,groups}` |
+| `IDENTIDAD_KEYCLOAK_CLIENT_ID` / `_CLIENT_SECRET` | cliente del grant directo (`ai27-login`) |
+| `IDENTIDAD_KEYCLOAK_SERVICE_CLIENT_ID` / `_SERVICE_CLIENT_SECRET` | cuenta que corta sesiones (`ai27-identidad-svc`) |
+| `IDENTIDAD_KEYCLOAK_ADMIN_CLIENT_ID` / `_ADMIN_CLIENT_SECRET` | cuenta de administración |
+| `IDENTIDAD_KEYCLOAK_TIMEOUT` | p. ej. `10s` |
+
+En producción (sin tag), `core` usa el verificador JWT real, que valida firma
+contra el JWKS, expiración, `aud` e `iss`, y exige las tres variables:
+
+| Variable | Con Keycloak |
+|---|---|
+| `JWKS_URL` | `<realm>/protocol/openid-connect/certs` |
+| `JWT_AUDIENCE` | `ai27-internal` (mapper de audiencia del realm) |
+| `JWT_ISSUER` | `<realm>`, p. ej. `https://auth.<dominio>/realms/ai27` |
 
 ```bash
-SERVICE_NAME=core HTTP_ADDR=:8080 JWKS_URL=https://idp.interno/.well-known/jwks.json \
+SERVICE_NAME=core HTTP_ADDR=:8080 \
+  JWKS_URL=... JWT_AUDIENCE=ai27-internal JWT_ISSUER=... \
+  IDENTIDAD_IDP=keycloak IDENTIDAD_KEYCLOAK_...=... \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
   DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
   DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \
   go run ./cmd/core
 ```
 
-En desarrollo, con el stub de autenticación (`devauth`, DEC-049), no se necesita
-un IdP (las cadenas de BD siguen siendo obligatorias):
+Un entorno local completo (Postgres, NATS y Keycloak 26.7.4 con un usuario demo
+por rol) lo levanta `scripts/gate-g2/entorno.sh` del repo umbral; `entorno.sh env`
+imprime todas estas variables.
+
+En desarrollo, con el stub de autenticación (`devauth`, DEC-049), no se necesitan
+`JWKS_URL`, `JWT_AUDIENCE` ni `JWT_ISSUER`, pero sí las de Keycloak. El login y el
+refresco de `identidad` responden 501: el stub no lee tokens del IdP y se trabaja
+con sus tokens de desarrollo:
 
 ```bash
-SERVICE_NAME=core HTTP_ADDR=:8080 \
+SERVICE_NAME=core HTTP_ADDR=:8080 IDENTIDAD_IDP=keycloak IDENTIDAD_KEYCLOAK_...=... \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
   DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
   DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \

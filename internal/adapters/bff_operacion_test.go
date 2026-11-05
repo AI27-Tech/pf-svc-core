@@ -274,6 +274,41 @@ func (f *operacionFake) ObtenerAsignacion(ctx context.Context, id opclient.Id) (
 	return &opclient.EscoltaVigente{ViajeId: id, Unidades: []opclient.Unidad{}}, nil
 }
 
+func (f *operacionFake) ListarUnidades(ctx context.Context, _ opclient.ListarUnidadesParams) (*opclient.PaginaUnidades, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.PaginaUnidades{}, nil
+}
+
+func (f *operacionFake) CompletarFechaHora(ctx context.Context, _ opclient.Id, _ opclient.FechaHoraEntrada) (*opclient.Viaje, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Viaje{}, nil
+}
+
+func (f *operacionFake) ListarIncidencias(ctx context.Context, _ opclient.Id, _ opclient.ListarIncidenciasParams) (*opclient.PaginaIncidencias, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.PaginaIncidencias{}, nil
+}
+
+func (f *operacionFake) ObtenerFicha(ctx context.Context, id opclient.Id) (*opclient.FichaTecnica, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.FichaTecnica{ViajeId: id}, nil
+}
+
+func (f *operacionFake) GuardarFicha(ctx context.Context, id opclient.Id, _ opclient.FichaTecnicaEntrada) (*opclient.FichaTecnica, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.FichaTecnica{ViajeId: id}, nil
+}
+
 // TestBFFOperacionFlujoInterno: cada método del flujo interno impone el
 // presupuesto de operacion y propaga el conflicto con su código de máquina,
 // como el adaptador HTTP de bff (I3).
@@ -314,6 +349,26 @@ func TestBFFOperacionFlujoInterno(t *testing.T) {
 		},
 		"ObtenerAsignacion": func(a *BFFOperacionEnProceso, ctx context.Context) error {
 			_, err := a.ObtenerAsignacion(ctx, id)
+			return err
+		},
+		"ListarUnidades": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ListarUnidades(ctx, opclient.ListarUnidadesParams{})
+			return err
+		},
+		"CompletarFechaHora": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.CompletarFechaHora(ctx, id, opclient.FechaHoraEntrada{})
+			return err
+		},
+		"ListarIncidencias": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ListarIncidencias(ctx, id, opclient.ListarIncidenciasParams{})
+			return err
+		},
+		"ObtenerFicha": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ObtenerFicha(ctx, id)
+			return err
+		},
+		"GuardarFicha": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.GuardarFicha(ctx, id, opclient.FichaTecnicaEntrada{})
 			return err
 		},
 	}

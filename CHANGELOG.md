@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-11-04 18:16 — Grupo 2 del flujo interno compuesto en proceso y el bff como única puerta pública
+
+**Para quién:** el panel interno, el portal cliente y quien opera `core`. En `core`, el panel ya lee el roster, completa la fecha/hora, lee el histórico de incidencias, lee y guarda la ficha técnica y lista los GPS, todo por el `bff`. Cambia también qué responde el servidor público: solo las rutas del `bff` (más `/health` y `/ready`) existen (DEC-137). Una ruta nativa de un módulo, por ejemplo `POST /api/v1/vehiculos` de `catalogos`, `POST /api/v1/viajes/{id}/descargas` de `operacion` o `DELETE /api/v1/sesiones/{id}` de `identidad`, ahora es 404. La sesión se inicia, refresca y cierra por `/api/v1/sesion` del `bff`. Quien opera `core` puede fijar con `MENSAJERIA_DISPONIBLE_MINUTOS` cuántos minutos sin actividad deja de estar disponible un Ejecutivo (DEC-128; vacío o inválido, 30).
+
+**Resumen:** sube los pins a los tags publicados del grupo 2 y cablea los 6 métodos nuevos de los puertos del `bff` en los adaptadores en proceso. Cierra la caída de `montarRutas` al mux interno y deja de montar las rutas de `identidad` (DEC-137). Pasa a `mensajeria` la ventana de disponibilidad del Ejecutivo (DEC-128).
+
+**Cambios:**
+- `go.mod`/`go.sum`: `pf-svc-bff` v0.1.16 → v0.1.17; `pf-svc-operacion` v0.1.16 → v0.1.18; `pf-svc-catalogos` v0.1.3 → v0.1.5; `pf-svc-mensajeria` v0.1.7 → v0.1.8; `pf-svc-reportes` v0.1.4 → v0.1.5; `pf-pkg-platform-go` v0.1.8 → v0.1.9 (por MVS). Contratos siguen en `tracer.37` e `identidad` en v0.1.2. `go build` no pidió renombrar constantes de enum.
+- `internal/adapters/bff_operacion.go`: `ListarUnidades`, `CompletarFechaHora`, `ListarIncidencias`, `ObtenerFicha`, `GuardarFicha` sobre `operacion.Consultas()`, con `bff.PresupuestoOperacion` y `traducirErrorOperacion`. `GuardarFicha` recibe el `&Tracto{}` que el handler del bff ya tradujo de `"tracto": null`.
+- `internal/adapters/bff_catalogos.go`: `ListarGps` sobre `catalogos.Consultas().ListarGps(cursor)`.
+- `cmd/core/main.go`: `montarRutas` solo monta las rutas del `bff`. Las `Routes` de `catalogos`, `operacion`, `reportes` y `mensajeria` ya no se llaman en `core`: solo arman handlers, sin efectos laterales, y sus `Workers` se recolectan aparte. Se quita `idn.Routes(srv.Mux(), ...)`: `identidad` conserva su relay de outbox y su fachada en proceso, que usa el `bff` para la sesión. `mensajeria.Deps.VentanaDisponible` sale de `MENSAJERIA_DISPONIBLE_MINUTOS` con `config.GetEnvInt`, la misma clave y default que el cmd de `mensajeria`.
+- `cmd/core/wiring_test.go`: `TestMontarRutasSoloBFF` (los patrones del bff, incluidos los 6 nuevos y las 3 rutas de `/api/v1/sesion`) y `TestRutaNativaSinBFFEs404` (rutas nativas de `operacion`, `catalogos` e `identidad` dan 404).
+- `internal/adapters/*_test.go`: los dobles de `ConsultasAPI` suman los métodos nuevos; la tabla de paridad del flujo interno suma 5 casos y `TestBFFCatalogosListarGps` cubre el cursor y la categoría del error.
+- `.github/workflows/ci.yml`: `arch-test` pasa a v0.1.9, la versión de `platform-go` en `go.mod`, como pide el comentario del paso.
+
+**Notas:**
+- `pf-svc-realtime` llama a `identidad` por HTTP para la revocación. No está en el binario de la demo; queda como deuda para cuando se componga (DEC-137 #4, DT-17).
+- Login y refresh por el `bff` llegan a `identidad` en proceso, pero `identidad` v0.1.2 no tiene IdP cableado ni `EmitirSesion`/`RefrescarSesion` implementados, así que hoy no emiten sesión. Era igual por la ruta propia de `identidad`. El logout (`DELETE /api/v1/sesion`) sí revoca: confirma la revocación y luego entra en panic por el IdP nil (B2), como antes.
+
+**Verificación:** `gofmt` limpio, `go vet ./...` (con y sin `-tags devauth`), `go build ./...` y `-tags devauth`, `go test -race ./...` y `go test -tags devauth ./...`, `arch-test` v0.1.9 en verde; el binario de producción no contiene `internal/devauth`. Gate G2 contra el binario de esta rama, revocando por el `bff`: 17/17. Recorrido de la demo sobre el binario real: `/tmp/smoke-recorrido-demo.out`.
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`, `cmd/core/main.go`, `cmd/core/wiring_test.go`, `internal/adapters/bff_operacion.go`, `internal/adapters/bff_operacion_test.go`, `internal/adapters/bff_catalogos.go`, `internal/adapters/bff_catalogos_test.go`, `internal/adapters/aptitud_recursos_test.go`, `internal/adapters/reportes_catalogos_test.go`, `.github/workflows/ci.yml`, `CHANGELOG.md`
+
 ## 2026-11-04 17:05 — Los 409 de mensajeria llegan con su código
 
 **Para quién:** los frontends. Por `core`, un 409 de `mensajeria` deja de llegar como `"conflicto"` y trae el código del contrato (`emergencia_cerrada`, `conflicto_version_reclamo`, `conversacion_solo_lectura`, `stream_resync_required`, `transicion_invalida`).

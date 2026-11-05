@@ -88,6 +88,10 @@ func (f *catalogosFake) ObtenerCustodio(context.Context, catclient.Id, *catclien
 	panic("no debe invocarse en estas pruebas")
 }
 
+func (f *catalogosFake) ListarGps(context.Context, *catclient.Cursor) (*catclient.PaginaGps, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
 func (f *catalogosFake) ListarValoresCatalogo(context.Context, catclient.TipoCatalogo, *catclient.Cursor) (*catclient.PaginaValoresCatalogo, error) {
 	panic("no debe invocarse en estas pruebas")
 }

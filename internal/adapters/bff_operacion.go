@@ -281,3 +281,66 @@ func (a *BFFOperacionEnProceso) DescargarAdjunto(ctx context.Context, id, aid op
 	}
 	return out, nil
 }
+
+// --- Flujo interno, grupo 2 (E8-T9/T10/T12/T13) -----------------------------
+
+// ListarUnidades reenvía la lectura del roster para asignar la escolta.
+func (a *BFFOperacionEnProceso) ListarUnidades(ctx context.Context, params opclient.ListarUnidadesParams) (*opclient.PaginaUnidades, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ListarUnidades(ctx, params)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ListarUnidades", err)
+	}
+	return out, nil
+}
+
+// CompletarFechaHora reenvía la captura de fecha_hora_servicio antes de aprobar.
+func (a *BFFOperacionEnProceso) CompletarFechaHora(ctx context.Context, id opclient.Id, body opclient.FechaHoraEntrada) (*opclient.Viaje, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.CompletarFechaHora(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "CompletarFechaHora", err)
+	}
+	return out, nil
+}
+
+// ListarIncidencias reenvía la lectura del histórico de incidencias del viaje.
+func (a *BFFOperacionEnProceso) ListarIncidencias(ctx context.Context, id opclient.Id, params opclient.ListarIncidenciasParams) (*opclient.PaginaIncidencias, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ListarIncidencias(ctx, id, params)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ListarIncidencias", err)
+	}
+	return out, nil
+}
+
+// ObtenerFicha reenvía la lectura de la ficha técnica.
+func (a *BFFOperacionEnProceso) ObtenerFicha(ctx context.Context, id opclient.Id) (*opclient.FichaTecnica, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ObtenerFicha(ctx, id)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ObtenerFicha", err)
+	}
+	return out, nil
+}
+
+// GuardarFicha reenvía la edición por partes de la ficha. El handler del bff ya
+// tradujo `"tracto": null` a &Tracto{}, que es lo que Consultas() espera.
+func (a *BFFOperacionEnProceso) GuardarFicha(ctx context.Context, id opclient.Id, body opclient.FichaTecnicaEntrada) (*opclient.FichaTecnica, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.GuardarFicha(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "GuardarFicha", err)
+	}
+	return out, nil
+}

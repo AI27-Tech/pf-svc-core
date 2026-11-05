@@ -39,7 +39,7 @@ func nombresDeWorkers(t *testing.T, b *busmem.Bus, conSubscriber bool) []string 
 	if conSubscriber {
 		sub = b
 	}
-	modules, idn, err := construirModulos(pools{}, b, sub, b, autenticadorNulo{}, logger)
+	modules, idn, err := construirModulos(pools{}, b, sub, b, autenticadorNulo{}, idpDePrueba(t), nil, logger)
 	if err != nil {
 		t.Fatalf("construirModulos: %v", err)
 	}
@@ -182,7 +182,7 @@ func muxPublico(t *testing.T) *http.ServeMux {
 	t.Helper()
 	b := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	modules, _, err := construirModulos(pools{}, b, b, b, autenticadorNulo{}, logger)
+	modules, _, err := construirModulos(pools{}, b, b, b, autenticadorNulo{}, idpDePrueba(t), nil, logger)
 	if err != nil {
 		t.Fatalf("construirModulos: %v", err)
 	}

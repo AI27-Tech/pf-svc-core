@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-11-05 13:18 — El login de `core` corre contra Keycloak real
+
+**Para quién:** los portales y quien opera `core`. `POST /api/v1/sesion` del `bff` ya inicia sesión de verdad: usuario, contraseña y TOTP contra Keycloak, y devuelve tokens firmados por Keycloak con `rol`, `audiencia`, `tenant_id` y `sesion_id`. El refresco (`POST /api/v1/sesion/refresh`) y el cierre (`DELETE /api/v1/sesion`, 204) también funcionan, y el cierre corta la sesión en Keycloak. Antes, el login y el logout entraban en panic por el IdP nil (B2). Quien opera `core` debe dar ahora las variables de Keycloak y del verificador (ver README); sin ellas, `core` no arranca y nombra las que faltan (DEC-095).
+
+**Resumen:** sube `identidad` a v0.1.3 (E4-T1, E4-T3 a E4-T6), cablea el adaptador de Keycloak en `identidad.Deps.IDP` igual que el cmd de `identidad` y el `TokenParser` que activa el login. El verificador JWT de producción valida además `aud` e `iss` configurables.
+
+**Cambios:**
+- `go.mod`/`go.sum`: `pf-svc-identidad` v0.1.2 → v0.1.3. MVS no movió contratos (`tracer.37`) ni `platform-go` (v0.1.9); `go build` no pidió renombrar constantes de enum.
+- `cmd/core/idp.go`: `construirIDP` arma el proveedor con `idpconfig.Cargar` (variables `IDENTIDAD_IDP` / `IDENTIDAD_KEYCLOAK_*`, secretos directos o `_FILE`) y `identidad.NewIDPKeycloak`. Exige `IDENTIDAD_IDP=keycloak` en los dos builds: `identidad.New` falla sin IdP y el doble en memoria vive en `internal/` de `identidad`.
+- `cmd/core/auth_prod.go`: `construirAutenticador` exige `JWKS_URL`, `JWT_AUDIENCE` y `JWT_ISSUER` (todas las faltantes en un error). La audiencia ya no sale de `SERVICE_NAME`. `verificadorConEmisor` rechaza un `iss` distinto, porque `auth.Verifier` de `platform-go` v0.1.9 no lo valida. Devuelve también el `TokenParser` sobre el mismo verificador.
+- `cmd/core/auth_devauth.go`: sin cambio para el stub; devuelve `TokenParser` nil, así que con `devauth` el login y el refresco responden 501.
+- `internal/adapters/identidad_tokens.go`: `TokensIdentidad` implementa `identidad.TokenParser` (`sub` y `sesion_id` del access token, verificados).
+- `cmd/core/main.go`: `construirModulos` recibe el proveedor y el `TokenParser` y los pasa a `identidad.Deps`. `IDPAdmin` no se cablea: las rutas de gobierno no son públicas en `core` (DEC-137).
+- Pruebas: `idp_test.go` (con y sin Keycloak, faltantes nombradas, sin filtrar secretos), `auth_prod_test.go` (variables obligatorias y `iss`), `identidad_tokens_test.go` (lectura y fallo cerrado); `wiring_test.go` construye `identidad` con el adaptador real y configuración ficticia.
+- `README.md`: variables de Keycloak y del verificador.
+
+**Notas:**
+- Con `devauth`, `core` ya no arranca sin Keycloak configurado: es consecuencia de `identidad` v0.1.3. Para arrancarlo sin Keycloak, `identidad` tendría que exportar su doble en memoria.
+- Hallazgos de `identidad` v0.1.3 observados con Keycloak real, sin cambio aquí: un usuario de Keycloak sin `sujeto` en `identidad` recibe 500 en el login (el login no da de alta sujetos), y un segundo login del mismo usuario con su sesión viva también da 500 (`una_sesion_viva`). Expirar no libera esa sesión; solo la libera el logout.
+
+**Verificación:** `gofmt` limpio, `go vet ./...` (con y sin `-tags devauth`), `go build ./...` y `-tags devauth`, `go test -race ./...` y `go test -tags devauth ./...`, `arch-test` v0.1.9 en verde; el binario de producción no contiene `internal/devauth`. Contra Keycloak 26.7.4 con el realm de `identidad` v0.1.3, solo por el `bff`: login de los 8 roles (201, claims correctos), refresh 200 con `sesion_id` estable, logout 204 sin panic, token previo rechazado en 1 s y la sesión de Keycloak cortada. Recorrido de la demo con tokens del login: 76 pasos, 0 fallas. Gate G2: 17/17.
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`, `cmd/core/main.go`, `cmd/core/idp.go`, `cmd/core/idp_test.go`, `cmd/core/auth_prod.go`, `cmd/core/auth_prod_test.go`, `cmd/core/auth_devauth.go`, `cmd/core/wiring_test.go`, `internal/adapters/identidad_tokens.go`, `internal/adapters/identidad_tokens_test.go`, `README.md`, `CHANGELOG.md`
+
 ## 2026-11-04 18:16 — Grupo 2 del flujo interno compuesto en proceso y el bff como única puerta pública
 
 **Para quién:** el panel interno, el portal cliente y quien opera `core`. En `core`, el panel ya lee el roster, completa la fecha/hora, lee el histórico de incidencias, lee y guarda la ficha técnica y lista los GPS, todo por el `bff`. Cambia también qué responde el servidor público: solo las rutas del `bff` (más `/health` y `/ready`) existen (DEC-137). Una ruta nativa de un módulo, por ejemplo `POST /api/v1/vehiculos` de `catalogos`, `POST /api/v1/viajes/{id}/descargas` de `operacion` o `DELETE /api/v1/sesiones/{id}` de `identidad`, ahora es 404. La sesión se inicia, refresca y cierra por `/api/v1/sesion` del `bff`. Quien opera `core` puede fijar con `MENSAJERIA_DISPONIBLE_MINUTOS` cuántos minutos sin actividad deja de estar disponible un Ejecutivo (DEC-128; vacío o inválido, 30).

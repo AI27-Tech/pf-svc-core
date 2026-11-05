@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-11-05 16:48 — Pins del demo: identidad v0.1.4, operacion v0.1.19, bff v0.1.18
+
+**Para quién:** el binario del demo (DEC-088). Tres arreglos llegan a `core`:
+- **identidad v0.1.4 (PR #28, DEC-138):** volver a entrar sin cerrar sesión ya no responde 500. El login nuevo reemplaza la sesión viva y el token viejo deja de servir. Un usuario de Keycloak sin sujeto recibe 401 en lugar de 500.
+- **operacion v0.1.19 (PR #91, DEC-112/DEC-132):** un cliente solo lista y lee sus propios viajes. Antes veía los de todas las empresas. El viaje de otro cliente responde 404.
+- **bff v0.1.18 (PR #76):** el filtro `estado` de la lista de viajes funciona en los dos portales.
+
+**Cambios:**
+- `go.mod`/`go.sum`: `pf-svc-identidad` v0.1.3 → v0.1.4, `pf-svc-operacion` v0.1.18 → v0.1.19, `pf-svc-bff` v0.1.17 → v0.1.18. Sin cambio de código en `core`.
+
+**Verificación:** `gofmt` limpio, `go build ./...`, `go vet ./...`, `go test -count=1 ./...` y `arch-test` en verde. Recorrido del demo por el `bff` con login real de Keycloak 26.7.4: 92/92. Incluye un segundo login con la sesión viva, el aislamiento entre clientes (lista y detalle ajeno → 404) y el filtro por estado. Gate G2: 17/17.
+
 ## 2026-11-05 13:18 — El login de `core` corre contra Keycloak real
 
 **Para quién:** los portales y quien opera `core`. `POST /api/v1/sesion` del `bff` ya inicia sesión de verdad: usuario, contraseña y TOTP contra Keycloak, y devuelve tokens firmados por Keycloak con `rol`, `audiencia`, `tenant_id` y `sesion_id`. El refresco (`POST /api/v1/sesion/refresh`) y el cierre (`DELETE /api/v1/sesion`, 204) también funcionan, y el cierre corta la sesión en Keycloak. Antes, el login y el logout entraban en panic por el IdP nil (B2). Quien opera `core` debe dar ahora las variables de Keycloak y del verificador (ver README); sin ellas, `core` no arranca y nombra las que faltan (DEC-095).

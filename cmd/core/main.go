@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
 	"github.com/AI27-Tech/pf-pkg-platform-go/bus"
@@ -62,6 +63,9 @@ const (
 	// del camino de datos: core falla al arrancar si no responde, igual que con
 	// los pools (ver abrirBus).
 	envNATSURL = "NATS_URL"
+	// envMensajeriaDisponibleMinutos es N de DEC-128 en minutos, la misma clave
+	// que lee el cmd de mensajeria; vacío o inválido, 30.
+	envMensajeriaDisponibleMinutos = "MENSAJERIA_DISPONIBLE_MINUTOS"
 )
 
 // rolesDeBD asocia cada clave de entorno a su rol de BD. Es la fuente única de
@@ -155,22 +159,20 @@ func run() error {
 	}
 	defer cerrarBus()
 
-	// 6. Cablear los cinco módulos de core con sus pools y adaptadores en
-	//    proceso. identidad se devuelve por separado porque su Routes pide el
-	//    verificador y la revocación (firma distinta de la interfaz module); el
-	//    resto monta por la interfaz común. El autenticador (real o stub devauth)
-	//    se inyecta en bff.Deps.Verificador y en las rutas protegidas de identidad.
-	//    bff recibe el Broadcaster y construye internamente su proyección de
-	//    tombstones y su consumidor de sesion.revocada (bff v0.1.3).
+	// 6. Cablear los módulos de core con sus pools y adaptadores en proceso.
+	//    identidad se devuelve por separado porque su Routes tiene otra firma
+	//    (no entra en la interfaz module); solo aporta Workers y su fachada en
+	//    proceso, que usa el bff para la sesión. El autenticador (real o stub
+	//    devauth) se inyecta en bff.Deps.Verificador. bff recibe el Broadcaster y
+	//    construye internamente su proyección de tombstones y su consumidor de
+	//    sesion.revocada (bff v0.1.3).
 	modules, idn, err := construirModulos(pls, bc.durable, bc.durable, bc.conexion, autenticador, logger)
 	if err != nil {
 		return err
 	}
+	// Solo el bff es público (DEC-137): identidad tampoco monta sus rutas. La
+	// sesión se inicia, refresca y cierra por /api/v1/sesion del bff.
 	montarRutas(srv.Mux(), modules)
-	// identidad monta sus rutas con el verificador. La revocación en SUS rutas
-	// (consultar su propia proyección) es alcance aparte; aquí va nil. La
-	// revocación efectiva end-to-end que este cableado cierra es la de bff.
-	idn.Routes(srv.Mux(), autenticador, nil)
 
 	// 7. Arrancar los workers que cada módulo declare, más los del bus de la
 	//    raíz, y drenarlos al apagar. identidad aporta su relay de outbox; bff
@@ -288,21 +290,20 @@ func abrirBus(natsURL string) (busCableado, func(), error) {
 	return busCableado{conexion: conexion, durable: durable}, cerrar, nil
 }
 
-// montarRutas monta las rutas de los módulos con bff como puerta única: bff va en
-// el mux público y gana; el resto monta en un mux interno al que el público
-// delega lo que bff no sirve. Los módulos publican también las rutas que bff
-// proxea (su modo standalone); en un solo mux esos patrones repetidos hacen
-// panic al arrancar. Un choque entre dos módulos no-bff sigue haciendo panic.
+// montarRutas monta en el mux público SOLO las rutas de bff: bff es la única
+// puerta pública (decisión del Lead, 2026-11-04). Las Routes de los demás módulos
+// no se llaman: su superficie HTTP es la de su modo standalone (cmd/api) y en
+// core se consume en proceso por Consultas(). Antes iban a un mux interno al que
+// el público caía por "/", y así una ruta nativa sin guarda de bff (p. ej. POST
+// /api/v1/vehiculos de catalogos) quedaba expuesta. Routes no tiene efectos
+// laterales en esos módulos (solo arma handlers); sus Workers se recolectan
+// aparte en run(). identidad tampoco monta (DEC-137): no está en esta lista.
 func montarRutas(publico *http.ServeMux, modules []module) {
-	internos := http.NewServeMux()
 	for _, m := range modules {
 		if _, esBFF := m.(*bff.Module); esBFF {
 			m.Routes(publico)
-			continue
 		}
-		m.Routes(internos)
 	}
-	publico.Handle("/", internos)
 }
 
 // construirModulos construye y devuelve los módulos de `core` que existan hoy.
@@ -397,8 +398,9 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 		Chat:     p.mensajeria,
 		Despacho: p.mensajeria,
 	}, mensajeria.Deps{
-		Publisher:  busPublisher,
-		Subscriber: subscriber,
+		Publisher:         busPublisher,
+		Subscriber:        subscriber,
+		VentanaDisponible: time.Duration(config.GetEnvInt(envMensajeriaDisponibleMinutos, 30)) * time.Minute,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir mensajeria: %w", err)
@@ -424,7 +426,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	}
 
 	logger.Info("módulos cableados: identidad + catalogos + operacion + reportes + mensajeria + bff (aristas co-ubicadas en proceso)")
-	// identidad va por separado: su Routes pide verificador y revocación (firma
-	// distinta de la interfaz module). Entra igual en la recolección de Workers.
+	// identidad va por separado: su Routes tiene otra firma y no se monta
+	// (DEC-137). Entra igual en la recolección de Workers.
 	return []module{cat, op, rep, msg, front}, idn, nil
 }

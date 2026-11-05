@@ -131,12 +131,21 @@ func run() error {
 	}
 
 	// 3. Autenticador: real o stub, según el build tag (auth_prod.go /
-	//    auth_devauth.go). Se construye aunque todavía no haya rutas protegidas,
-	//    para fallar temprano si falta configuración.
-	autenticador, err := construirAutenticador(cfg)
+	//    auth_devauth.go), y con él el TokenParser del login de identidad (nil
+	//    con devauth). Se construye antes de abrir pools o bus para fallar
+	//    temprano si falta configuración.
+	autenticador, tokens, err := construirAutenticador(cfg)
 	if err != nil {
 		return err
 	}
+
+	// 3b. Proveedor de identidad (Keycloak, ADR 32): identidad lo exige desde
+	//     v0.1.3. Solo lee configuración; no hace red al arrancar.
+	proveedor, err := construirIDP(os.LookupEnv, os.ReadFile)
+	if err != nil {
+		return err
+	}
+	logger.Info("proveedor de identidad: keycloak", slog.Bool("login", tokens != nil))
 
 	// 4. Servidor HTTP con /health y /ready ya montados.
 	srv := server.New(cfg.HTTPAddr, server.WithLogger(logger))
@@ -166,7 +175,7 @@ func run() error {
 	//    devauth) se inyecta en bff.Deps.Verificador. bff recibe el Broadcaster y
 	//    construye internamente su proyección de tombstones y su consumidor de
 	//    sesion.revocada (bff v0.1.3).
-	modules, idn, err := construirModulos(pls, bc.durable, bc.durable, bc.conexion, autenticador, logger)
+	modules, idn, err := construirModulos(pls, bc.durable, bc.durable, bc.conexion, autenticador, proveedor, tokens, logger)
 	if err != nil {
 		return err
 	}
@@ -323,14 +332,19 @@ func montarRutas(publico *http.ServeMux, modules []module) {
 // privilegio mínimo y asume que la base ya está migrada (I1: el proceso del
 // servicio nunca porta CREATE SCHEMA/CREATE ROLE). Los pools hacen ping en
 // abrirPools; una base sin migrar falla ahí de forma observable.
-func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscriber, broadcaster bus.Broadcaster, autenticador auth.Authenticator, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
+func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscriber, broadcaster bus.Broadcaster, autenticador auth.Authenticator, proveedor identidad.IdentityProvider, tokens identidad.TokenParser, logger *slog.Logger) (modules []module, idn *identidad.Module, err error) {
 	// identidad: hoja del grafo, un pool/rol (svc_identidad). Es destino de las
 	// aristas de revocación (operacion/catalogos/reportes) y de la de sesión
 	// (bff), así que se construye primero. Su relay de outbox drena
-	// `sesion.revocada` al bus real (ADR 29/32) por BusPublisher; IDP sigue como
-	// doble en espera del adaptador del IdP on-premise (ADR 32).
+	// `sesion.revocada` al bus real (ADR 29/32) por BusPublisher. IDP es el
+	// adaptador de Keycloak (emite, refresca y corta la sesión en el IdP) y
+	// TokenParser activa el login (sin él, emitir y refrescar responden 501).
+	// IDPAdmin (gobierno, E4-T6) no se cablea: sus rutas no son públicas en core
+	// (DEC-137).
 	idn, err = identidad.New(identidad.Pools{Identidad: p.identidad}, identidad.Deps{
+		IDP:          proveedor,
 		BusPublisher: busPublisher,
+		TokenParser:  tokens,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir identidad: %w", err)

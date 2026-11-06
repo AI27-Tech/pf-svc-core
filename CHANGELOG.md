@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-11-06 15:05 — bff v0.1.19 y contrato tracer.38: unidad del roster legible (DT-19)
+
+**Para quién:** el binario del demo. El panel interno mostraba el vehículo y los custodios de cada unidad del roster como UUID. Con el bff `v0.1.19`, `GET /api/v1/unidades` trae el económico, las placas y el nombre de los custodios.
+
+**Cambios:**
+- `go.mod`/`go.sum`: `pf-svc-bff` v0.1.18 → v0.1.19 y `api-client-go` `tracer.37` → `tracer.38`. Sin cambio de código en `core`.
+
+**Verificación:** `gofmt` limpio, `go build ./...`, `go vet ./...`, `go test -count=1 ./...` y `arch-test` en verde. Recorrido por el `bff` con login real de Keycloak 26.7.4: 92/92. Gate G2: 17/17. Recorrido en navegador con los dos portales de `-m`: 29/29, y "Asignar escolta" muestra "P-101 · ABC-1234 / Ana López, Juan Pérez".
+
 ## 2026-11-05 16:48 — Pins del demo: identidad v0.1.4, operacion v0.1.19, bff v0.1.18
 
 **Para quién:** el binario del demo (DEC-088). Tres arreglos llegan a `core`:

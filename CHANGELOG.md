@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 2026:11:09 17:20 — catalogos publica `catalogo.actualizado` (DT-22)
+## 2026-11-09 17:20 — catalogos publica `catalogo.actualizado` (DT-22)
 
 **Para quién:** `operacion` dentro de core, y quien opera el binario. catalogos dejaba `catalogo.actualizado` en `catalogos.outbox` sin publicarlo, así que la caché de aptitud de operacion no se invalidaba al dar de baja un vehículo o custodio: tardaba hasta 30 s (su TTL). Ahora el aviso sale al bus en menos de un segundo. Para quien mantiene el servicio: un worker nuevo, `outbox-relay:catalogos`, que entra en readiness como `worker:outbox-relay:catalogos`.
 

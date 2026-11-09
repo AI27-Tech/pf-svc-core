@@ -69,6 +69,36 @@ func (a *AptitudRecursosEnProceso) AptitudCustodio(ctx context.Context, custodio
 	return apt, nil
 }
 
+// El mismo adaptador cubre el puerto operacion.AtomosCatalogo (E8-T21,
+// DEC-142), igual que AptitudRecursosHTTP en operacion: misma arista, mismo
+// presupuesto. La raíz lo inyecta también en operacion.Deps.Atomos.
+var _ operacion.AtomosCatalogo = (*AptitudRecursosEnProceso)(nil)
+
+// ObtenerVehiculo lee el vehículo vigente por id. El no_encontrado de catalogos
+// se propaga tal cual: el roster lo vuelve referencia inválida (400).
+func (a *AptitudRecursosEnProceso) ObtenerVehiculo(ctx context.Context, vehiculoID catclient.Id) (*catclient.Vehiculo, error) {
+	ctx, cancel := context.WithTimeout(ctx, operacion.PresupuestoAptitud)
+	defer cancel()
+
+	v, err := a.consultas.ObtenerVehiculo(ctx, vehiculoID, nil)
+	if err != nil {
+		return nil, traducirError(ctx, "ObtenerVehiculo", err)
+	}
+	return v, nil
+}
+
+// ObtenerCustodio lee el custodio vigente por id, con la misma semántica.
+func (a *AptitudRecursosEnProceso) ObtenerCustodio(ctx context.Context, custodioID catclient.Id) (*catclient.Custodio, error) {
+	ctx, cancel := context.WithTimeout(ctx, operacion.PresupuestoAptitud)
+	defer cancel()
+
+	c, err := a.consultas.ObtenerCustodio(ctx, custodioID, nil)
+	if err != nil {
+		return nil, traducirError(ctx, "ObtenerCustodio", err)
+	}
+	return c, nil
+}
+
 // traducirError mantiene la misma taxonomía que el adaptador HTTP de operacion:
 //   - un vencimiento del presupuesto o una cancelación del contexto se traduce a
 //     Degradado (la aptitud es informativa y no gatea, DEC-055), igual que

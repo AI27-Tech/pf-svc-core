@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-11-09 14:30 — Roster del Jefe Operativo, vehículos y custodios, flota sin cliente (tracer.39)
+
+**Para quién:** el binario del demo. Con esta rama, `core` cablea en proceso lo que el `bff` de la ola `tracer.39` proyecta: el Jefe Operativo y el Administrador arman el roster en `/roster` (E8-T21, DEC-142), el Administrador da de alta y edita vehículos y custodios en `/catalogos`, la ficha técnica lee la escolta de su viaje con `GET /viajes/{id}/asignacion` y la flota ya no pertenece a un cliente (DEC-143).
+
+**Falta:** subir `pf-svc-bff` cuando su PR #82 tenga tag. Esta rama deja el `bff` en v0.1.19: compila, pero `TestMontarRutasSoloBFF` falla porque v0.1.19 no sirve `POST /unidades` ni las rutas de vehículos y custodios. La verificación de abajo se corrió con un `replace` local al commit `55e0f38` de esa rama, que no se versiona.
+
+**Cambios:**
+- `go.mod`/`go.sum`: `api-client-go` `tracer.38` → `tracer.39`, `pf-svc-operacion` v0.1.19 → v0.1.20 y `pf-svc-catalogos` v0.1.5 → v0.1.6. `go build` no pidió renombrar constantes de enum.
+- `internal/adapters/bff_operacion.go`: `CrearUnidad`, `ObtenerUnidad` y `ModificarUnidad` en proceso, con `bff.PresupuestoOperacion`. Los `409` de operacion llegan con su `codigo` (`vehiculo_en_otra_unidad`, `custodio_en_otra_unidad`, `unidad_con_reserva_vigente`).
+- `internal/adapters/bff_catalogos.go`: `ListarVehiculos`, `CrearVehiculo`, `ActualizarVehiculo`, `ListarCustodios`, `CrearCustodio` y `ActualizarCustodio`, con `bff.PresupuestoCatalogos`. Las escrituras van por `catalogos.Comandos()`, así que `NewBFFCatalogos` recibe también esa superficie. Los listados replican el despacho del handler HTTP de catalogos: con `ids`, lectura por lote; `ids` y `cursor` juntos, 400.
+- `internal/adapters/aptitud_recursos.go`: el mismo adaptador de aptitud cubre el puerto `operacion.AtomosCatalogo` (`ObtenerVehiculo`, `ObtenerCustodio`), igual que su par HTTP en operacion. `cmd/core/main.go` lo inyecta en `operacion.Deps.Aptitud` y en `operacion.Deps.Atomos`. Sin `Atomos`, crear o cambiar unidades respondía 503.
+- `cmd/migrate/main.go`: `svc_catalogos` recibe `search_path=catalogos`. El alta de un vehículo o un custodio escribe `catalogo.actualizado` en `outbox` sin calificar el esquema y respondía 500 (`relation "outbox" does not exist`). Antes de esta ola nadie escribía catalogos en `core`.
+- Pruebas: paridad de presupuesto y error de los métodos nuevos, despacho por lote y rechazo de `ids` con `cursor`, y rutas públicas de roster y flota.
+
+**Verificación (con el `replace` local del bff):** `gofmt` limpio, `go build ./...`, `go vet ./...`, `go test -count=1 ./...` y `arch-test` en verde. `scripts/demo` con esta rama: recorrido 46 pasos con 1 falla (E8-T12 en pantalla) con el panel de `-m` y con el del PR #29 de `pf-web-frontend-internal`. Por API del bff: 14/14 (altas del Administrador, unidad nueva, los tres `409` con su `codigo`, `403` del Jefe Operativo al crear un vehículo y la escolta legible para el Monitorista).
+
 ## 2026-11-09 10:30 — identidad v0.1.5: ninguna cuenta cruza entre cliente y roles internos (DEC-141)
 
 **Para quién:** el binario del demo y Seguridad. `identidad` v0.1.5 rechaza con `409 rol_cruza_audiencia` el cambio de rol entre `cliente` y un rol interno, y el alta de un rol en un tenant del otro tipo. Antes, un cliente pasado a rol interno conservaba el tenant de su empresa y veía todo (DEC-129). En core la superficie de gobierno de identidad no es pública (DEC-137) y el `bff` todavía no la proyecta (llega con `tracer.39`), así que hoy nadie llega a esa ruta desde fuera; el cambio cierra el hueco antes de que la ola lo exponga.

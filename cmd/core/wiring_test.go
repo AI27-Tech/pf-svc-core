@@ -137,6 +137,14 @@ func TestMontarRutasSoloBFF(t *testing.T) {
 		{"GET", "/api/v1/viajes/x/ficha", "GET /api/v1/viajes/{id}/ficha"},
 		{"PATCH", "/api/v1/viajes/x/ficha", "PATCH /api/v1/viajes/{id}/ficha"},
 		{"GET", "/api/v1/gps", "GET /api/v1/gps"},
+		// Roster y flota (E8-T21, tracer.39): ya los sirve bff.
+		{"POST", "/api/v1/unidades", "POST /api/v1/unidades"},
+		{"GET", "/api/v1/unidades/x", "GET /api/v1/unidades/{id}"},
+		{"PATCH", "/api/v1/unidades/x", "PATCH /api/v1/unidades/{id}"},
+		{"POST", "/api/v1/vehiculos", "POST /api/v1/vehiculos"},
+		{"PATCH", "/api/v1/vehiculos/x", "PATCH /api/v1/vehiculos/{id}"},
+		{"GET", "/api/v1/custodios", "GET /api/v1/custodios"},
+		{"POST", "/api/v1/custodios", "POST /api/v1/custodios"},
 		// Sesión: la sirve el bff sobre la fachada en proceso de identidad (DEC-137).
 		{"POST", "/api/v1/sesion", "POST /api/v1/sesion"},
 		{"POST", "/api/v1/sesion/refresh", "POST /api/v1/sesion/refresh"},
@@ -158,8 +166,8 @@ func TestRutaNativaSinBFFEs404(t *testing.T) {
 
 	nativas := []struct{ metodo, ruta string }{
 		{"POST", "/api/v1/viajes/00000000-0000-0000-0000-000000000000/descargas"}, // operacion: registrarDescargaViaje
-		{"POST", "/api/v1/vehiculos"},                    // catalogos: alta de vehículo
-		{"GET", "/api/v1/custodios"},                     // catalogos: listado de custodios
+		{"GET", "/api/v1/vehiculos/00000000-0000-0000-0000-000000000000/aptitud"}, // catalogos: aptitud de vehículo
+		{"POST", "/api/v1/contratos"},                    // catalogos: alta de contrato
 		{"GET", "/api/v1/catalogos-tipo/tipos_servicio"}, // catalogos: valores por tipo
 		// identidad tampoco es pública (DEC-137).
 		{"POST", "/api/v1/sesiones"},

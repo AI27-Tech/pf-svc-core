@@ -72,8 +72,12 @@ func (f *catalogosFake) ListarVehiculosPorLote(context.Context, []catclient.Id) 
 	panic("no debe invocarse en estas pruebas")
 }
 
-func (f *catalogosFake) ObtenerVehiculo(context.Context, catclient.Id, *catclient.MarcaTiempo) (*catclient.Vehiculo, error) {
-	panic("no debe invocarse en estas pruebas")
+// ObtenerVehiculo lo usa el puerto AtomosCatalogo (E8-T21).
+func (f *catalogosFake) ObtenerVehiculo(ctx context.Context, _ catclient.Id, _ *catclient.MarcaTiempo) (*catclient.Vehiculo, error) {
+	if _, err := f.responder(ctx); err != nil {
+		return nil, err
+	}
+	return &catclient.Vehiculo{}, nil
 }
 
 func (f *catalogosFake) ListarCustodios(context.Context, *catclient.Cursor) (*catclient.PaginaCustodios, error) {
@@ -84,8 +88,12 @@ func (f *catalogosFake) ListarCustodiosPorLote(context.Context, []catclient.Id) 
 	panic("no debe invocarse en estas pruebas")
 }
 
-func (f *catalogosFake) ObtenerCustodio(context.Context, catclient.Id, *catclient.MarcaTiempo) (*catclient.Custodio, error) {
-	panic("no debe invocarse en estas pruebas")
+// ObtenerCustodio lo usa el puerto AtomosCatalogo (E8-T21).
+func (f *catalogosFake) ObtenerCustodio(ctx context.Context, _ catclient.Id, _ *catclient.MarcaTiempo) (*catclient.Custodio, error) {
+	if _, err := f.responder(ctx); err != nil {
+		return nil, err
+	}
+	return &catclient.Custodio{}, nil
 }
 
 func (f *catalogosFake) ListarGps(context.Context, *catclient.Cursor) (*catclient.PaginaGps, error) {
@@ -181,6 +189,46 @@ func TestErrorDeContratoSePropagaSinRecategorizar(t *testing.T) {
 			// El error original debe seguir alcanzable en la cadena.
 			if !errors.Is(err, c.err) {
 				t.Fatal("el error original no se preservó en la cadena")
+			}
+		})
+	}
+}
+
+// TestAtomosParidadConHTTP: la lectura por id del roster (AtomosCatalogo) usa el
+// mismo presupuesto que la aptitud, propaga el no_encontrado (el roster lo vuelve
+// 400) y traduce el vencimiento a Degradado (el roster responde 503), como
+// AptitudRecursosHTTP de operacion.
+func TestAtomosParidadConHTTP(t *testing.T) {
+	llamadas := map[string]func(*AptitudRecursosEnProceso, context.Context) error{
+		"ObtenerVehiculo": func(a *AptitudRecursosEnProceso, ctx context.Context) error {
+			_, err := a.ObtenerVehiculo(ctx, catclient.Id{})
+			return err
+		},
+		"ObtenerCustodio": func(a *AptitudRecursosEnProceso, ctx context.Context) error {
+			_, err := a.ObtenerCustodio(ctx, catclient.Id{})
+			return err
+		},
+	}
+	for nombre, llamar := range llamadas {
+		t.Run(nombre, func(t *testing.T) {
+			fake := &catalogosFake{}
+			if err := llamar(NewAptitudRecursos(fake), context.Background()); err != nil {
+				t.Fatalf("no se esperaba error: %v", err)
+			}
+			if dl, ok := fake.ctxVisto.Deadline(); !ok || time.Until(dl) > operacion.PresupuestoAptitud {
+				t.Fatalf("deadline ausente o fuera del presupuesto (ok=%v)", ok)
+			}
+
+			fake = &catalogosFake{err: platformerrors.NewNoEncontrado("catalogos: no existe")}
+			if got := platformerrors.AsCategory(llamar(NewAptitudRecursos(fake), context.Background())); got != platformerrors.CategoryNoEncontrado {
+				t.Fatalf("categoría = %v; se esperaba NoEncontrado", got)
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			fake = &catalogosFake{retardo: time.Hour}
+			if got := platformerrors.AsCategory(llamar(NewAptitudRecursos(fake), ctx)); got != platformerrors.CategoryDegradado {
+				t.Fatalf("categoría = %v; se esperaba Degradado", got)
 			}
 		})
 	}

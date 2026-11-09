@@ -47,8 +47,11 @@ const envDBAdmin = "DB_ADMIN_URL"
 //     de GRANT).
 //   - svc_reportes: su consumidor registra el inbox con inbox.Registrar, que
 //     inserta en inbox_evento sin calificar el esquema.
+//   - svc_catalogos: el alta y la edición de vehículos y custodios (E8-T21)
+//     escriben catalogo.actualizado en catalogos.outbox sin calificar.
 var searchPathPorRol = []struct{ rol, esquema string }{
 	{"svc_identidad", "identidad"},
+	{"svc_catalogos", "catalogos"},
 	{"op_viajes", "viajes"},
 	{"op_asignacion", "viajes"},
 	{"svc_reportes", "reportes"},

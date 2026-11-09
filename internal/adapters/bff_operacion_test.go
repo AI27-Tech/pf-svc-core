@@ -281,6 +281,27 @@ func (f *operacionFake) ListarUnidades(ctx context.Context, _ opclient.ListarUni
 	return &opclient.PaginaUnidades{}, nil
 }
 
+func (f *operacionFake) CrearUnidad(ctx context.Context, _ opclient.UnidadEntrada) (*opclient.Unidad, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Unidad{}, nil
+}
+
+func (f *operacionFake) ObtenerUnidad(ctx context.Context, id opclient.Id) (*opclient.Unidad, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Unidad{Id: id}, nil
+}
+
+func (f *operacionFake) ModificarUnidad(ctx context.Context, id opclient.Id, _ opclient.UnidadModificacion) (*opclient.Unidad, error) {
+	if err := f.esperar(ctx); err != nil {
+		return nil, err
+	}
+	return &opclient.Unidad{Id: id}, nil
+}
+
 func (f *operacionFake) CompletarFechaHora(ctx context.Context, _ opclient.Id, _ opclient.FechaHoraEntrada) (*opclient.Viaje, error) {
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
@@ -353,6 +374,18 @@ func TestBFFOperacionFlujoInterno(t *testing.T) {
 		},
 		"ListarUnidades": func(a *BFFOperacionEnProceso, ctx context.Context) error {
 			_, err := a.ListarUnidades(ctx, opclient.ListarUnidadesParams{})
+			return err
+		},
+		"CrearUnidad": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.CrearUnidad(ctx, opclient.UnidadEntrada{})
+			return err
+		},
+		"ObtenerUnidad": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ObtenerUnidad(ctx, id)
+			return err
+		},
+		"ModificarUnidad": func(a *BFFOperacionEnProceso, ctx context.Context) error {
+			_, err := a.ModificarUnidad(ctx, id, opclient.UnidadModificacion{})
 			return err
 		},
 		"CompletarFechaHora": func(a *BFFOperacionEnProceso, ctx context.Context) error {

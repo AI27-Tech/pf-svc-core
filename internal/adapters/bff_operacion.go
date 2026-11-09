@@ -296,6 +296,46 @@ func (a *BFFOperacionEnProceso) ListarUnidades(ctx context.Context, params opcli
 	return out, nil
 }
 
+// --- Roster del Jefe Operativo (E8-T21, DEC-142) ----------------------------
+// operacion decide el rol y las reglas. Sus 409 (vehiculo_en_otra_unidad,
+// custodio_en_otra_unidad, unidad_con_reserva_vigente) se propagan con su codigo.
+
+// CrearUnidad reenvía el alta de una unidad del roster.
+func (a *BFFOperacionEnProceso) CrearUnidad(ctx context.Context, body opclient.UnidadEntrada) (*opclient.Unidad, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.CrearUnidad(ctx, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "CrearUnidad", err)
+	}
+	return out, nil
+}
+
+// ObtenerUnidad reenvía la lectura de una unidad del roster.
+func (a *BFFOperacionEnProceso) ObtenerUnidad(ctx context.Context, id opclient.Id) (*opclient.Unidad, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ObtenerUnidad(ctx, id)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ObtenerUnidad", err)
+	}
+	return out, nil
+}
+
+// ModificarUnidad reenvía la edición, activación o desactivación de una unidad.
+func (a *BFFOperacionEnProceso) ModificarUnidad(ctx context.Context, id opclient.Id, body opclient.UnidadModificacion) (*opclient.Unidad, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ModificarUnidad(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ModificarUnidad", err)
+	}
+	return out, nil
+}
+
 // CompletarFechaHora reenvía la captura de fecha_hora_servicio antes de aprobar.
 func (a *BFFOperacionEnProceso) CompletarFechaHora(ctx context.Context, id opclient.Id, body opclient.FechaHoraEntrada) (*opclient.Viaje, error) {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)

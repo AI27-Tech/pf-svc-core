@@ -8,8 +8,8 @@ github.com/AI27-Tech/pf-svc-bff v0.1.19 h1:u1QKtcqh76aJxsYs16nhnXOCCnYOK5a1FlIS/
 github.com/AI27-Tech/pf-svc-bff v0.1.19/go.mod h1:JbTSqMOeoL5rT24r96m7UrD0RT9Sj8zO5dmDUBsZ+l8=
 github.com/AI27-Tech/pf-svc-catalogos v0.1.5 h1:xpzu/6ngSMpAW5e32YEMbjUEiEZWYw5u3hon4GNLUzY=
 github.com/AI27-Tech/pf-svc-catalogos v0.1.5/go.mod h1:vWJchIkYL0H5II1262QFKBRSnO2xJA2vaJScyFXSlGk=
-github.com/AI27-Tech/pf-svc-identidad v0.1.4 h1:F6VDNEdLLFmMXPfDrIs8mxcW4bD7v4719A0AQIc7aO4=
-github.com/AI27-Tech/pf-svc-identidad v0.1.4/go.mod h1:oJoMmNb4N5LFfcsOtQqDhIgIhDzI/E5I6oleOWwWjq0=
+github.com/AI27-Tech/pf-svc-identidad v0.1.5 h1:RJUNVkVGMnJG94q6qcpTaB9OB9YraA9UgkGX0Pn9d/8=
+github.com/AI27-Tech/pf-svc-identidad v0.1.5/go.mod h1:oJoMmNb4N5LFfcsOtQqDhIgIhDzI/E5I6oleOWwWjq0=
 github.com/AI27-Tech/pf-svc-mensajeria v0.1.8 h1:V5i2EExj0LcaZzb0Y7iVNam01UDLUKcjkGIH64O5Ju0=
 github.com/AI27-Tech/pf-svc-mensajeria v0.1.8/go.mod h1:x5rLcp3vRqlLNRIMBRYGlKwZDoTJRY1TqmAv2jhYG9o=
 github.com/AI27-Tech/pf-svc-operacion v0.1.19 h1:D5RtiuHJ53ElKxJPV51EwLTYnFN7tr0s8AfqyexjIB0=

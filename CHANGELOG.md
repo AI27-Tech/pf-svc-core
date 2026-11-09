@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026:11:09 17:20 — catalogos publica `catalogo.actualizado` (DT-22)
+
+**Para quién:** `operacion` dentro de core, y quien opera el binario. catalogos dejaba `catalogo.actualizado` en `catalogos.outbox` sin publicarlo, así que la caché de aptitud de operacion no se invalidaba al dar de baja un vehículo o custodio: tardaba hasta 30 s (su TTL). Ahora el aviso sale al bus en menos de un segundo. Para quien mantiene el servicio: un worker nuevo, `outbox-relay:catalogos`, que entra en readiness como `worker:outbox-relay:catalogos`.
+
+**Resumen:** `construirModulos` pasa el Publisher durable del bus a `catalogos.Deps.BusPublisher`; catalogos arma su relay y `run()` lo recolecta como los demás workers.
+
+**Cambios:**
+- `cmd/core/main.go`: `BusPublisher: busPublisher` en `catalogos.New`.
+- `cmd/core/wiring_test.go`: `TestCatalogosAportaRelay` (falla sin el cambio).
+- `go.mod`/`go.sum`: pin de `pf-svc-catalogos` a la rama del PR #35. **Antes de mergear** se sube al tag `v0.1.7` de catalogos.
+
+**Verificado:** `gofmt`, `go vet ./...`, `go build ./...`, `go test ./...` y `arch-test@v0.1.9` limpios. Demo (`scripts/demo`) con este core y panel/portal en `-m`: alta de vehículo desde `/catalogos` → 201, la fila de `catalogos.outbox` queda publicada en 0.34 s y el consumidor `operacion-catalogos` de NATS la entrega y acusa; recorrido 46/46. Gate G2: PASS.
+
+**Archivos modificados:**
+- `cmd/core/main.go`, `cmd/core/wiring_test.go`, `go.mod`, `go.sum`
+- `CHANGELOG.md`
+
 ## 2026-11-09 14:30 — Roster del Jefe Operativo, vehículos y custodios, flota sin cliente (tracer.39)
 
 **Para quién:** el binario del demo. Con esta rama, `core` cablea en proceso lo que el `bff` de la ola `tracer.39` proyecta: el Jefe Operativo y el Administrador arman el roster en `/roster` (E8-T21, DEC-142), el Administrador da de alta y edita vehículos y custodios en `/catalogos`, la ficha técnica lee la escolta de su viaje con `GET /viajes/{id}/asignacion` y la flota ya no pertenece a un cliente (DEC-143).

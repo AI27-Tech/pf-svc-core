@@ -352,8 +352,11 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 
 	// catalogos: hoja del grafo, un pool/rol. Su única arista saliente es la
 	// restringida a identidad para revocación (DEC-051), resuelta en proceso.
+	// Recibe el bus para el relay de su outbox: publica catalogo.actualizado,
+	// que invalida las cachés de operacion y mensajeria (DT-22).
 	cat, err := catalogos.New(catalogos.Pools{Catalogos: p.catalogos}, catalogos.Deps{
-		Revocacion: adapters.NewRevocacionCatalogos(idn.Consultas()),
+		Revocacion:   adapters.NewRevocacionCatalogos(idn.Consultas()),
+		BusPublisher: busPublisher,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("construir catalogos: %w", err)

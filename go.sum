@@ -4,8 +4,8 @@ github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.39 h1
 github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.39/go.mod h1:JlGX2WLFfC1+gxIhO+I47U002vqxhrjgCKXZZ4+wmY8=
 github.com/AI27-Tech/pf-pkg-platform-go v0.1.9 h1:8+dOYOrmEN3Puqo0gd8AYa/JZ0mXNKGBz63yNAyulPM=
 github.com/AI27-Tech/pf-pkg-platform-go v0.1.9/go.mod h1:1djk0Mx1Y8AriWQdqgeRr8PnJbwa+c8dMFZFziZ993Q=
-github.com/AI27-Tech/pf-svc-bff v0.1.19 h1:u1QKtcqh76aJxsYs16nhnXOCCnYOK5a1FlIS/+HldiA=
-github.com/AI27-Tech/pf-svc-bff v0.1.19/go.mod h1:JbTSqMOeoL5rT24r96m7UrD0RT9Sj8zO5dmDUBsZ+l8=
+github.com/AI27-Tech/pf-svc-bff v0.1.20 h1:WzKOHuj/9KZ0jjuCFzECvdY6ZgLVn3yaq2LP+PkMq+w=
+github.com/AI27-Tech/pf-svc-bff v0.1.20/go.mod h1:wERUwR5eDnrpKvMY+tT9MvAVKzGvAMQjg7+8glH5uVY=
 github.com/AI27-Tech/pf-svc-catalogos v0.1.6 h1:Qi+giszA0JRXNsrljmpr0gZEoZ8a2KygWCVHjrddvtM=
 github.com/AI27-Tech/pf-svc-catalogos v0.1.6/go.mod h1:vWJchIkYL0H5II1262QFKBRSnO2xJA2vaJScyFXSlGk=
 github.com/AI27-Tech/pf-svc-identidad v0.1.5 h1:RJUNVkVGMnJG94q6qcpTaB9OB9YraA9UgkGX0Pn9d/8=

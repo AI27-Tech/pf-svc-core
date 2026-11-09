@@ -4,9 +4,8 @@
 
 **Para quién:** el binario del demo. Con esta rama, `core` cablea en proceso lo que el `bff` de la ola `tracer.39` proyecta: el Jefe Operativo y el Administrador arman el roster en `/roster` (E8-T21, DEC-142), el Administrador da de alta y edita vehículos y custodios en `/catalogos`, la ficha técnica lee la escolta de su viaje con `GET /viajes/{id}/asignacion` y la flota ya no pertenece a un cliente (DEC-143).
 
-**Falta:** subir `pf-svc-bff` cuando su PR #82 tenga tag. Esta rama deja el `bff` en v0.1.19: compila, pero `TestMontarRutasSoloBFF` falla porque v0.1.19 no sirve `POST /unidades` ni las rutas de vehículos y custodios. La verificación de abajo se corrió con un `replace` local al commit `55e0f38` de esa rama, que no se versiona.
-
 **Cambios:**
+- `go.mod`/`go.sum`: `pf-svc-bff` v0.1.19 → v0.1.20 (PR #82: las 12 operaciones de `tracer.39`).
 - `go.mod`/`go.sum`: `api-client-go` `tracer.38` → `tracer.39`, `pf-svc-operacion` v0.1.19 → v0.1.20 y `pf-svc-catalogos` v0.1.5 → v0.1.6. `go build` no pidió renombrar constantes de enum.
 - `internal/adapters/bff_operacion.go`: `CrearUnidad`, `ObtenerUnidad` y `ModificarUnidad` en proceso, con `bff.PresupuestoOperacion`. Los `409` de operacion llegan con su `codigo` (`vehiculo_en_otra_unidad`, `custodio_en_otra_unidad`, `unidad_con_reserva_vigente`).
 - `internal/adapters/bff_catalogos.go`: `ListarVehiculos`, `CrearVehiculo`, `ActualizarVehiculo`, `ListarCustodios`, `CrearCustodio` y `ActualizarCustodio`, con `bff.PresupuestoCatalogos`. Las escrituras van por `catalogos.Comandos()`, así que `NewBFFCatalogos` recibe también esa superficie. Los listados replican el despacho del handler HTTP de catalogos: con `ids`, lectura por lote; `ids` y `cursor` juntos, 400.
@@ -14,7 +13,7 @@
 - `cmd/migrate/main.go`: `svc_catalogos` recibe `search_path=catalogos`. El alta de un vehículo o un custodio escribe `catalogo.actualizado` en `outbox` sin calificar el esquema y respondía 500 (`relation "outbox" does not exist`). Antes de esta ola nadie escribía catalogos en `core`.
 - Pruebas: paridad de presupuesto y error de los métodos nuevos, despacho por lote y rechazo de `ids` con `cursor`, y rutas públicas de roster y flota.
 
-**Verificación (con el `replace` local del bff):** `gofmt` limpio, `go build ./...`, `go vet ./...`, `go test -count=1 ./...` y `arch-test` en verde. `scripts/demo` con esta rama: recorrido 46 pasos con 1 falla (E8-T12 en pantalla) con el panel de `-m` y con el del PR #29 de `pf-web-frontend-internal`. Por API del bff: 14/14 (altas del Administrador, unidad nueva, los tres `409` con su `codigo`, `403` del Jefe Operativo al crear un vehículo y la escolta legible para el Monitorista).
+**Verificación:** `gofmt` limpio, `go vet ./...`, `go build ./...`, `go test -count=1 ./...` y `arch-test@v0.1.9` en verde, con los pins reales y sin `replace`. Con `scripts/demo` (`CORE_DIR` = esta rama, panel de PR #29): recorrido en navegador 46/46, sin fallas; la ficha técnica muestra la escolta del viaje y no cierra la sesión del monitorista. Por API del bff, 14/14: el administrador da de alta vehículos (sin cliente) y custodios; el Jefe Operativo arma una unidad; reusar vehículo o custodio da `409` con su `codigo`; editar o desactivar la P-101 reservada da `409 unidad_con_reserva_vigente`; el Jefe Operativo no puede dar de alta un vehículo (`403`); el monitorista lee la escolta con nombres. Gate G2: 17/17 (el gate ahora siembra su unidad en el roster, DEC-142 #7).
 
 ## 2026-11-09 10:30 — identidad v0.1.5: ninguna cuenta cruza entre cliente y roles internos (DEC-141)
 

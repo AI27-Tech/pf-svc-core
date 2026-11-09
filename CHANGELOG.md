@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-11-09 10:30 — identidad v0.1.5: ninguna cuenta cruza entre cliente y roles internos (DEC-141)
+
+**Para quién:** el binario del demo y Seguridad. `identidad` v0.1.5 rechaza con `409 rol_cruza_audiencia` el cambio de rol entre `cliente` y un rol interno, y el alta de un rol en un tenant del otro tipo. Antes, un cliente pasado a rol interno conservaba el tenant de su empresa y veía todo (DEC-129). En core la superficie de gobierno de identidad no es pública (DEC-137) y el `bff` todavía no la proyecta (llega con `tracer.39`), así que hoy nadie llega a esa ruta desde fuera; el cambio cierra el hueco antes de que la ola lo exponga.
+
+**Cambios:**
+- `go.mod`/`go.sum`: `pf-svc-identidad` v0.1.4 → v0.1.5. Sin cambio de código en `core`.
+
+**Verificación:** `gofmt` limpio, `go build ./...`, `go vet ./...`, `go test -count=1 ./...` y `arch-test` en verde. `scripts/demo/demo.sh` con esta rama: `up` y `recorrido` 29/29 con Keycloak real y los dos portales de `-m`. Gate G2: 17/17.
+
 ## 2026-11-06 15:05 — bff v0.1.19 y contrato tracer.38: unidad del roster legible (DT-19)
 
 **Para quién:** el binario del demo. El panel interno mostraba el vehículo y los custodios de cada unidad del roster como UUID. Con el bff `v0.1.19`, `GET /api/v1/unidades` trae el económico, las placas y el nombre de los custodios.

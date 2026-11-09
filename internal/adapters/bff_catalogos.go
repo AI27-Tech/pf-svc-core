@@ -29,16 +29,21 @@ import (
 // El parámetro bearer del puerto es para el adaptador HTTP (propaga el header);
 // en proceso los claims ya viajan en el ctx, así que se ignora, igual que en
 // BFFOperacionEnProceso.
+//
+// Las escrituras de vehículos y custodios (E8-T21) van por catalogos.Comandos(),
+// la superficie de escritura administrativa, separada de la de lectura.
 type BFFCatalogosEnProceso struct {
 	consultas catalogos.ConsultasAPI
+	comandos  catalogos.ComandosAPI
 }
 
 var _ bff.CatalogosPort = (*BFFCatalogosEnProceso)(nil)
 
-// NewBFFCatalogos construye el adaptador en proceso sobre la superficie
-// Consultas() de catalogos. La raíz lo inyecta en bff.Deps.Catalogos.
-func NewBFFCatalogos(c catalogos.ConsultasAPI) *BFFCatalogosEnProceso {
-	return &BFFCatalogosEnProceso{consultas: c}
+// NewBFFCatalogos construye el adaptador en proceso sobre las superficies
+// Consultas() y Comandos() de catalogos. La raíz lo inyecta en
+// bff.Deps.Catalogos.
+func NewBFFCatalogos(c catalogos.ConsultasAPI, cmd catalogos.ComandosAPI) *BFFCatalogosEnProceso {
+	return &BFFCatalogosEnProceso{consultas: c, comandos: cmd}
 }
 
 // ListarClientes reenvía el listado de clientes activos (selector de creación de
@@ -79,6 +84,105 @@ func (a *BFFCatalogosEnProceso) ListarGps(ctx context.Context, _ string, params 
 	out, err := a.consultas.ListarGps(ctx, params.Cursor)
 	if err != nil {
 		return nil, traducirErrorBFFCatalogos(ctx, "ListarGps", err)
+	}
+	return out, nil
+}
+
+// --- Vehículos y custodios de /catalogos (adelanto de E8-T16, DEC-142 #6) ---
+// La guarda de rol la aplica el handler del bff antes de llamar. Los listados
+// replican el despacho del handler HTTP de catalogos: con ids, lectura por lote;
+// ids y cursor juntos, 400.
+
+// ListarVehiculos reenvía el listado (o el lote por ids) de vehículos vigentes.
+func (a *BFFCatalogosEnProceso) ListarVehiculos(ctx context.Context, _ string, params catclient.ListarVehiculosParams) (*catclient.PaginaVehiculos, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	var (
+		out *catclient.PaginaVehiculos
+		err error
+	)
+	switch {
+	case params.Ids != nil && params.Cursor != nil:
+		err = platformerrors.NewValidacion("ids y cursor son mutuamente excluyentes")
+	case params.Ids != nil:
+		out, err = a.consultas.ListarVehiculosPorLote(ctx, *params.Ids)
+	default:
+		out, err = a.consultas.ListarVehiculos(ctx, params.Cursor)
+	}
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "ListarVehiculos", err)
+	}
+	return out, nil
+}
+
+// CrearVehiculo reenvía el alta de un vehículo de la flota (sin cliente, DEC-143).
+func (a *BFFCatalogosEnProceso) CrearVehiculo(ctx context.Context, _ string, body catclient.VehiculoEntrada) (*catclient.Vehiculo, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, err := a.comandos.CrearVehiculo(ctx, body)
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "CrearVehiculo", err)
+	}
+	return out, nil
+}
+
+// ActualizarVehiculo reenvía la edición de un vehículo (nueva versión vigente).
+func (a *BFFCatalogosEnProceso) ActualizarVehiculo(ctx context.Context, _ string, id catclient.Id, body catclient.VehiculoCambios) (*catclient.Vehiculo, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, err := a.comandos.ActualizarVehiculo(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "ActualizarVehiculo", err)
+	}
+	return out, nil
+}
+
+// ListarCustodios reenvía el listado (o el lote por ids) de custodios vigentes.
+func (a *BFFCatalogosEnProceso) ListarCustodios(ctx context.Context, _ string, params catclient.ListarCustodiosParams) (*catclient.PaginaCustodios, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	var (
+		out *catclient.PaginaCustodios
+		err error
+	)
+	switch {
+	case params.Ids != nil && params.Cursor != nil:
+		err = platformerrors.NewValidacion("ids y cursor son mutuamente excluyentes")
+	case params.Ids != nil:
+		out, err = a.consultas.ListarCustodiosPorLote(ctx, *params.Ids)
+	default:
+		out, err = a.consultas.ListarCustodios(ctx, params.Cursor)
+	}
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "ListarCustodios", err)
+	}
+	return out, nil
+}
+
+// CrearCustodio reenvía el alta de un custodio.
+func (a *BFFCatalogosEnProceso) CrearCustodio(ctx context.Context, _ string, body catclient.CustodioEntrada) (*catclient.Custodio, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, err := a.comandos.CrearCustodio(ctx, body)
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "CrearCustodio", err)
+	}
+	return out, nil
+}
+
+// ActualizarCustodio reenvía la edición de un custodio (nueva versión vigente).
+func (a *BFFCatalogosEnProceso) ActualizarCustodio(ctx context.Context, _ string, id catclient.Id, body catclient.CustodioCambios) (*catclient.Custodio, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, err := a.comandos.ActualizarCustodio(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "ActualizarCustodio", err)
 	}
 	return out, nil
 }

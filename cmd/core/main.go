@@ -365,7 +365,10 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	// Recibe además el Subscriber durable del bus: con él, operacion envuelve su
 	// puerto Aptitud con la caché en proceso y abre el consumidor durable de
 	// catalogo.actualizado que la invalida (E5-T5). Sin Subscriber el módulo no
-	// cachea ni abre el consumidor (arranque standalone sin bus).
+	// cachea ni abre el consumidor (arranque standalone sin bus). El mismo
+	// adaptador cubre Atomos (lectura por id para armar el roster, E8-T21): sin
+	// él, crear o cambiar unidades responde 503.
+	recursos := adapters.NewAptitudRecursos(cat.Consultas())
 	op, err := operacion.New(operacion.Pools{
 		Viajes:     p.opViajes,
 		Asignacion: p.opAsignacion,
@@ -373,7 +376,8 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 		Auditoria:  p.opAuditoria,
 		Roster:     p.opRoster,
 	}, operacion.Deps{
-		Aptitud:      adapters.NewAptitudRecursos(cat.Consultas()),
+		Aptitud:      recursos,
+		Atomos:       recursos,
 		Revocacion:   adapters.NewRevocacionOperacion(idn.Consultas()),
 		Verificador:  autenticador,
 		BusPublisher: busPublisher,
@@ -429,7 +433,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	front, err := bff.New(bff.Pools{}, bff.Deps{
 		Operacion:   adapters.NewBFFOperacion(op.Consultas()),
 		Identidad:   adapters.NewBFFIdentidad(idn.Consultas()),
-		Catalogos:   adapters.NewBFFCatalogos(cat.Consultas()),
+		Catalogos:   adapters.NewBFFCatalogos(cat.Consultas(), cat.Comandos()),
 		Mensajeria:  adapters.NewBFFMensajeria(msg.Emergencias(), msg.Conversaciones()),
 		Reportes:    adapters.NewBFFReportes(rep.Consultas()),
 		Verificador: autenticador,

@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-11-10 14:40 — Administración de usuarios, organizaciones y alcance (tracer.40, E8-T19)
+
+**Para quién:** el administrador que da de alta usuarios y organizaciones desde `/administracion` del panel, y el Jefe Operativo que asigna unidades a Monitoristas. Antes, en core las rutas de administración del bff no existían, la lectura de clientes por lote ignoraba `ids` y `identidad` no recibía `IDPAdmin`, así que el alta, la edición y el cambio de rol habrían respondido 503. Ahora las quince rutas de administración del bff responden contra identidad, catalogos y Keycloak reales.
+
+**Resumen:** los adaptadores en proceso delegan las operaciones nuevas y `construirModulos` pasa a identidad la administración del adaptador de Keycloak. Sin variables de entorno nuevas: la cuenta `IDENTIDAD_KEYCLOAK_ADMIN_*` ya era obligatoria.
+
+**Cambios:**
+- `internal/adapters/bff_identidad.go`: los 14 métodos de gobierno, alcance y tenants del `IdentidadPort` delegan en `identidad.Consultas().Gobierno()`, con el presupuesto del bff. Los errores pasan tal cual (el bff lee su `codigo`); un vencimiento sigue siendo Degradado.
+- `internal/adapters/bff_catalogos.go`: `CrearCliente` y `ActualizarCliente` delegan en `catalogos.Comandos()`. `ListarClientes` con `ids` usa `ListarClientesPorLote`; antes ignoraba `ids` y devolvía la primera página. `ids` con `cursor` es 400, como en vehículos y custodios.
+- `cmd/core/main.go`: `IDPAdmin: identidad.IDPAdminDe(proveedor)`. Las rutas HTTP nativas de gobierno de identidad siguen sin montarse (DEC-137).
+- `cmd/core/wiring_test.go`: `TestAdministracionConIDPAdmin` (falla sin `IDPAdmin`: identidad no monta el gobierno; y ninguna de las 15 rutas del bff responde 404/501). `bff_catalogos_test.go` cubre el despacho de clientes; los fakes de catalogos suman `ListarClientesPorLote`.
+- `go.mod`/`go.sum`: contrato a `v0.1.0-tracer.40`. **Pines temporales** a las cabezas de los PRs abiertos: identidad #34 (`b21e167`), catalogos #38 (`69794cc`) y bff #85 (`f8b6ba8`). Se suben a tags cuando esos PRs entren y se promuevan, que por DEC-144 #1 será después del demo del 2026-11-11. Sin renombres de constantes de enum.
+- `cmd/migrate` no cambia: toma las migraciones `0008`–`0010` de identidad y `0012` de catalogos del pin; ninguna crea rol ni necesita `search_path` nuevo.
+
 ## 2026-11-09 17:20 — catalogos publica `catalogo.actualizado` (DT-22)
 
 **Para quién:** `operacion` dentro de core, y quien opera el binario. catalogos dejaba `catalogo.actualizado` en `catalogos.outbox` sin publicarlo, así que la caché de aptitud de operacion no se invalidaba al dar de baja un vehículo o custodio: tardaba hasta 30 s (su TTL). Ahora el aviso sale al bus en menos de un segundo. Para quien mantiene el servicio: un worker nuevo, `outbox-relay:catalogos`, que entra en readiness como `worker:outbox-relay:catalogos`.

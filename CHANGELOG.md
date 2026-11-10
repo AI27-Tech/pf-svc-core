@@ -11,7 +11,7 @@
 - `internal/adapters/bff_catalogos.go`: `CrearCliente` y `ActualizarCliente` delegan en `catalogos.Comandos()`. `ListarClientes` con `ids` usa `ListarClientesPorLote`; antes ignoraba `ids` y devolvía la primera página. `ids` con `cursor` es 400, como en vehículos y custodios.
 - `cmd/core/main.go`: `IDPAdmin: identidad.IDPAdminDe(proveedor)`. Las rutas HTTP nativas de gobierno de identidad siguen sin montarse (DEC-137).
 - `cmd/core/wiring_test.go`: `TestAdministracionConIDPAdmin` (falla sin `IDPAdmin`: identidad no monta el gobierno; y ninguna de las 15 rutas del bff responde 404/501). `bff_catalogos_test.go` cubre el despacho de clientes; los fakes de catalogos suman `ListarClientesPorLote`.
-- `go.mod`/`go.sum`: contrato a `v0.1.0-tracer.40`. **Pines temporales** a las cabezas de los PRs abiertos: identidad #34 (`b21e167`), catalogos #38 (`69794cc`) y bff #85 (`f8b6ba8`). Se suben a tags cuando esos PRs entren y se promuevan, que por DEC-144 #1 será después del demo del 2026-11-11. Sin renombres de constantes de enum.
+- `go.mod`/`go.sum`: contrato a `v0.1.0-tracer.40`; identidad `v0.1.6` (#34), catalogos `v0.1.8` (#38) y bff `v0.1.21` (#85), ya promovidos a `-m`. Sin renombres de constantes de enum.
 - `cmd/migrate` no cambia: toma las migraciones `0008`–`0010` de identidad y `0012` de catalogos del pin; ninguna crea rol ni necesita `search_path` nuevo.
 
 ## 2026-11-09 17:20 — catalogos publica `catalogo.actualizado` (DT-22)

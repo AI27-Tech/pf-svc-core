@@ -106,6 +106,16 @@ func TestOperacionConsumeCatalogosConSubscriber(t *testing.T) {
 	}
 }
 
+// TestCatalogosAportaRelay (DT-22): core le pasa el bus a catalogos, así que su
+// relay de outbox entra en la recolección de Workers y catalogo.actualizado
+// llega a los consumidores de operacion y mensajeria.
+func TestCatalogosAportaRelay(t *testing.T) {
+	nombres := nombresDeWorkers(t, busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{}), true)
+	if !contieneSubcadena(nombres, "outbox-relay:catalogos") {
+		t.Fatalf("no se encontró el relay de outbox de catalogos entre %v", nombres)
+	}
+}
+
 func contieneSubcadena(xs []string, sub string) bool {
 	for _, x := range xs {
 		if strings.Contains(x, sub) {

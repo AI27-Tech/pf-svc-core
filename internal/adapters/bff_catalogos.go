@@ -47,13 +47,26 @@ func NewBFFCatalogos(c catalogos.ConsultasAPI, cmd catalogos.ComandosAPI) *BFFCa
 }
 
 // ListarClientes reenvía el listado de clientes activos (selector de creación de
-// viaje, E8-T11). El puerto del bff lleva params; catalogos toma el cursor, así
-// que se extrae. bearer se ignora en proceso (los claims ya van en el ctx).
+// viaje, E8-T11) o, con ids, la lectura por lote de expedientes (organizaciones
+// de la administración, tracer.40). Replica el despacho del handler HTTP de
+// catalogos: ids y cursor juntos, 400. bearer se ignora en proceso (los claims
+// ya van en el ctx).
 func (a *BFFCatalogosEnProceso) ListarClientes(ctx context.Context, _ string, params catclient.ListarClientesParams) (*catclient.PaginaClientes, error) {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
 	defer cancel()
 
-	out, err := a.consultas.ListarClientes(ctx, params.Cursor)
+	var (
+		out *catclient.PaginaClientes
+		err error
+	)
+	switch {
+	case params.Ids != nil && params.Cursor != nil:
+		err = platformerrors.NewValidacion("ids y cursor son mutuamente excluyentes")
+	case params.Ids != nil:
+		out, err = a.consultas.ListarClientesPorLote(ctx, *params.Ids)
+	default:
+		out, err = a.consultas.ListarClientes(ctx, params.Cursor)
+	}
 	if err != nil {
 		return nil, traducirErrorBFFCatalogos(ctx, "ListarClientes", err)
 	}
@@ -183,6 +196,33 @@ func (a *BFFCatalogosEnProceso) ActualizarCustodio(ctx context.Context, _ string
 	out, err := a.comandos.ActualizarCustodio(ctx, id, body)
 	if err != nil {
 		return nil, traducirErrorBFFCatalogos(ctx, "ActualizarCustodio", err)
+	}
+	return out, nil
+}
+
+// --- Expediente de la organización cliente (tracer.40, E8-T19) ---
+// La guarda de rol y la de organización desactivada las aplica el bff.
+
+// CrearCliente reenvía el alta idempotente por id: creado es false si ya existía.
+func (a *BFFCatalogosEnProceso) CrearCliente(ctx context.Context, _ string, id catclient.Id, body catclient.ClienteEntrada) (*catclient.Cliente, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, creado, err := a.comandos.CrearCliente(ctx, id, body)
+	if err != nil {
+		return nil, false, traducirErrorBFFCatalogos(ctx, "CrearCliente", err)
+	}
+	return out, creado, nil
+}
+
+// ActualizarCliente reenvía la edición del expediente (nueva versión vigente).
+func (a *BFFCatalogosEnProceso) ActualizarCliente(ctx context.Context, _ string, id catclient.Id, body catclient.ClienteCambios) (*catclient.Cliente, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoCatalogos)
+	defer cancel()
+
+	out, err := a.comandos.ActualizarCliente(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorBFFCatalogos(ctx, "ActualizarCliente", err)
 	}
 	return out, nil
 }

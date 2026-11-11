@@ -133,9 +133,25 @@ func (f *flotaFake) ActualizarCustodio(ctx context.Context, _ catclient.Id, _ ca
 	return &catclient.Custodio{}, f.ver(ctx, "ActualizarCustodio")
 }
 
-// TestBFFCatalogosFlota: cada método de vehículos y custodios llega al método
-// esperado de catalogos con el presupuesto del bff y propaga la categoría del
-// error; los listados despachan por lote con ids y rechazan ids con cursor,
+func (f *flotaFake) ListarClientes(ctx context.Context, _ *catclient.Cursor) (*catclient.PaginaClientes, error) {
+	return &catclient.PaginaClientes{}, f.ver(ctx, "ListarClientes")
+}
+
+func (f *flotaFake) ListarClientesPorLote(ctx context.Context, _ []catclient.Id) (*catclient.PaginaClientes, error) {
+	return &catclient.PaginaClientes{}, f.ver(ctx, "ListarClientesPorLote")
+}
+
+func (f *flotaFake) CrearCliente(ctx context.Context, _ catclient.Id, _ catclient.ClienteEntrada) (*catclient.Cliente, bool, error) {
+	return &catclient.Cliente{}, true, f.ver(ctx, "CrearCliente")
+}
+
+func (f *flotaFake) ActualizarCliente(ctx context.Context, _ catclient.Id, _ catclient.ClienteCambios) (*catclient.Cliente, error) {
+	return &catclient.Cliente{}, f.ver(ctx, "ActualizarCliente")
+}
+
+// TestBFFCatalogosFlota: cada método de vehículos, custodios y clientes llega al
+// método esperado de catalogos con el presupuesto del bff y propaga la categoría
+// del error; los listados despachan por lote con ids y rechazan ids con cursor,
 // como el handler HTTP de catalogos (I3).
 func TestBFFCatalogosFlota(t *testing.T) {
 	id := catclient.Id{}
@@ -177,6 +193,26 @@ func TestBFFCatalogosFlota(t *testing.T) {
 			_, err := a.ActualizarCustodio(context.Background(), "", id, catclient.CustodioCambios{})
 			return err
 		}},
+		// Organización cliente (tracer.40): la lectura con ids va por lote.
+		{"ListarClientes", "ListarClientes", func(a *BFFCatalogosEnProceso) error {
+			_, err := a.ListarClientes(context.Background(), "", catclient.ListarClientesParams{Cursor: &cursor})
+			return err
+		}},
+		{"ListarClientes con ids", "ListarClientesPorLote", func(a *BFFCatalogosEnProceso) error {
+			_, err := a.ListarClientes(context.Background(), "", catclient.ListarClientesParams{Ids: &ids})
+			return err
+		}},
+		{"CrearCliente", "CrearCliente", func(a *BFFCatalogosEnProceso) error {
+			_, creado, err := a.CrearCliente(context.Background(), "", id, catclient.ClienteEntrada{})
+			if err == nil && !creado {
+				t.Error("CrearCliente debe propagar creado=true de catalogos")
+			}
+			return err
+		}},
+		{"ActualizarCliente", "ActualizarCliente", func(a *BFFCatalogosEnProceso) error {
+			_, err := a.ActualizarCliente(context.Background(), "", id, catclient.ClienteCambios{})
+			return err
+		}},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
@@ -202,7 +238,8 @@ func TestBFFCatalogosFlota(t *testing.T) {
 	a := NewBFFCatalogos(fake, fake)
 	_, errV := a.ListarVehiculos(context.Background(), "", catclient.ListarVehiculosParams{Ids: &ids, Cursor: &cursor})
 	_, errC := a.ListarCustodios(context.Background(), "", catclient.ListarCustodiosParams{Ids: &ids, Cursor: &cursor})
-	for _, err := range []error{errV, errC} {
+	_, errCl := a.ListarClientes(context.Background(), "", catclient.ListarClientesParams{Ids: &ids, Cursor: &cursor})
+	for _, err := range []error{errV, errC, errCl} {
 		if got := platformerrors.AsCategory(err); got != platformerrors.CategoryValidacion {
 			t.Fatalf("ids y cursor: categoría = %v; se esperaba Validacion", got)
 		}

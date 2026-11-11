@@ -64,6 +64,10 @@ func (f *catalogosFake) ListarClientes(context.Context, *catclient.Cursor) (*cat
 	panic("no debe invocarse en estas pruebas")
 }
 
+func (f *catalogosFake) ListarClientesPorLote(context.Context, []catclient.Id) (*catclient.PaginaClientes, error) {
+	panic("no debe invocarse en estas pruebas")
+}
+
 func (f *catalogosFake) ListarVehiculos(context.Context, *catclient.Cursor) (*catclient.PaginaVehiculos, error) {
 	panic("no debe invocarse en estas pruebas")
 }

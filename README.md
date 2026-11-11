@@ -85,9 +85,14 @@ imprimir valores. Cada secreto acepta también la forma `_FILE` (archivo montado
 | `IDENTIDAD_KEYCLOAK_ADMIN_SESSIONS_URL`, `_ADMIN_USERS_URL`, `_ADMIN_GROUPS_URL` | `<base>/admin/realms/ai27/{sessions,users,groups}` |
 | `IDENTIDAD_KEYCLOAK_CLIENT_ID` / `_CLIENT_SECRET` | cliente del grant directo (`ai27-login`) |
 | `IDENTIDAD_KEYCLOAK_SERVICE_CLIENT_ID` / `_SERVICE_CLIENT_SECRET` | cuenta que corta sesiones (`ai27-identidad-svc`) |
-| `IDENTIDAD_KEYCLOAK_ADMIN_CLIENT_ID` / `_ADMIN_CLIENT_SECRET` | cuenta de administración |
+| `IDENTIDAD_KEYCLOAK_ADMIN_CLIENT_ID` / `_ADMIN_CLIENT_SECRET` | cuenta de administración (gobierno de usuarios, tracer.40): necesita `manage-users` de `realm-management` |
 | `IDENTIDAD_KEYCLOAK_TIMEOUT` | p. ej. `10s` |
 
+La administración de usuarios del bff (tracer.40) usa la cuenta `ADMIN_CLIENT_*`:
+`core` pasa a `identidad.Deps.IDPAdmin` la administración del mismo adaptador de
+Keycloak (`identidad.IDPAdminDe`). No hay variables nuevas. Si esa cuenta no tiene
+`manage-users`, el alta, la edición, la (re)activación y el cambio de rol fallan
+contra Keycloak; las lecturas, el alcance y las organizaciones no dependen de ella.
 En producción (sin tag), `core` usa el verificador JWT real, que valida firma
 contra el JWKS, expiración, `aud` e `iss`, y exige las tres variables:
 

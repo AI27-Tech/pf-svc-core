@@ -339,10 +339,14 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	// `sesion.revocada` al bus real (ADR 29/32) por BusPublisher. IDP es el
 	// adaptador de Keycloak (emite, refresca y corta la sesión en el IdP) y
 	// TokenParser activa el login (sin él, emitir y refrescar responden 501).
-	// IDPAdmin (gobierno, E4-T6) no se cablea: sus rutas no son públicas en core
-	// (DEC-137).
+	// IDPAdmin (gobierno, E4-T6/E8-T19) es la administración del mismo adaptador
+	// de Keycloak, con su cuenta de servicio IDENTIDAD_KEYCLOAK_ADMIN_* (DEC-073).
+	// Lo consume la fachada en proceso Gobierno() que usa el bff; las rutas HTTP
+	// nativas de gobierno siguen sin montarse (DEC-137). Si el proveedor no
+	// administra, queda nil y lo que toca el IdP responde 503.
 	idn, err = identidad.New(identidad.Pools{Identidad: p.identidad}, identidad.Deps{
 		IDP:          proveedor,
+		IDPAdmin:     identidad.IDPAdminDe(proveedor),
 		BusPublisher: busPublisher,
 		TokenParser:  tokens,
 	})

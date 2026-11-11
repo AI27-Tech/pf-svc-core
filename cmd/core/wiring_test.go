@@ -13,6 +13,7 @@ import (
 	"github.com/AI27-Tech/pf-pkg-platform-go/bus"
 	busmem "github.com/AI27-Tech/pf-pkg-platform-go/bus/memory"
 	"github.com/AI27-Tech/pf-svc-core/internal/busregistry"
+	identidad "github.com/AI27-Tech/pf-svc-identidad"
 )
 
 // autenticadorNulo satisface auth.Authenticator sin verificar nada. Basta para
@@ -198,13 +199,65 @@ func TestRutaNativaSinBFFEs404(t *testing.T) {
 // muxPublico construye los módulos reales y monta sus rutas como run().
 func muxPublico(t *testing.T) *http.ServeMux {
 	t.Helper()
+	publico, _ := muxPublicoEIdentidad(t)
+	return publico
+}
+
+// muxPublicoEIdentidad es muxPublico y además devuelve el módulo identidad.
+func muxPublicoEIdentidad(t *testing.T) (*http.ServeMux, *identidad.Module) {
+	t.Helper()
 	b := busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{})
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	modules, _, err := construirModulos(pools{}, b, b, b, autenticadorNulo{}, idpDePrueba(t), nil, logger)
+	modules, idn, err := construirModulos(pools{}, b, b, b, autenticadorNulo{}, idpDePrueba(t), nil, logger)
 	if err != nil {
 		t.Fatalf("construirModulos: %v", err)
 	}
 	publico := http.NewServeMux()
 	montarRutas(publico, modules)
-	return publico
+	return publico, idn
+}
+
+// TestAdministracionConIDPAdmin (tracer.40, E8-T19): core le pasa a identidad la
+// administración del adaptador de Keycloak, y el bff sirve la administración de
+// usuarios y organizaciones sobre la fachada en proceso.
+//
+// Que identidad recibió IDPAdmin se observa en su Routes, que solo monta el
+// gobierno con IDPAdmin; ese mux es de la prueba, en core no se monta (DEC-137).
+// Las rutas del bff deben responder algo distinto de 404 (no montada) y de 501
+// (sin cablear); con el autenticador nulo no hay sesión, así que no llegan a
+// tocar la base.
+func TestAdministracionConIDPAdmin(t *testing.T) {
+	publico, idn := muxPublicoEIdentidad(t)
+
+	nativo := http.NewServeMux()
+	idn.Routes(nativo, autenticadorNulo{}, nil)
+	if _, patron := nativo.Handler(httptest.NewRequest("POST", "/api/v1/sujetos", nil)); patron != "POST /api/v1/sujetos" {
+		t.Fatalf("identidad no montó el gobierno (patrón %q): IDPAdmin no llegó a identidad.Deps", patron)
+	}
+
+	const id = "00000000-0000-0000-0000-000000000001"
+	rutas := []struct{ metodo, ruta string }{
+		{"GET", "/api/v1/sujetos"},
+		{"POST", "/api/v1/sujetos"},
+		{"GET", "/api/v1/sujetos/" + id},
+		{"PATCH", "/api/v1/sujetos/" + id},
+		{"DELETE", "/api/v1/sujetos/" + id},
+		{"POST", "/api/v1/sujetos/" + id + "/reactivacion"},
+		{"PUT", "/api/v1/sujetos/" + id + "/rol"},
+		{"POST", "/api/v1/sujetos/" + id + "/revocaciones"},
+		{"GET", "/api/v1/sujetos/" + id + "/alcance"},
+		{"PUT", "/api/v1/sujetos/" + id + "/alcance/unidades"},
+		{"PUT", "/api/v1/sujetos/" + id + "/alcance/subordinados"},
+		{"GET", "/api/v1/organizaciones"},
+		{"POST", "/api/v1/organizaciones"},
+		{"PATCH", "/api/v1/organizaciones/" + id},
+		{"DELETE", "/api/v1/organizaciones/" + id},
+	}
+	for _, r := range rutas {
+		rec := httptest.NewRecorder()
+		publico.ServeHTTP(rec, httptest.NewRequest(r.metodo, r.ruta, strings.NewReader("{}")))
+		if rec.Code == http.StatusNotFound || rec.Code == http.StatusNotImplemented {
+			t.Errorf("%s %s = %d; se esperaba una ruta montada y cableada", r.metodo, r.ruta, rec.Code)
+		}
+	}
 }

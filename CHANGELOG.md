@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-11-18 16:20 — Alcance del monitoreo por cliente (DEC-149, tracer.42)
+
+**Para quién:** el Monitorista, el Supervisor y el Coordinador, que en el binario compuesto ya ven solo los viajes, el dashboard y las emergencias de los clientes de su lista "mis clientes"; y el Jefe Operativo y el administrador, que la asignan desde `/roster`. Para quien opera el binario: tres workers nuevos (`operacion-alcance`, `reportes-alcance`, `mensajeria-alcance`) que dejan la réplica not-ready hasta cargar el snapshot de alcances de identidad.
+
+**Resumen:** sube los pines a la ola `tracer.42` y cablea lo que piden identidad #37/#40, operacion #97, reportes #31, mensajeria #64 y bff #90. El evento `alcance.cambiado` sale por el relay de outbox de identidad (ya cableado) y cada módulo lo proyecta con su durable.
+
+**Cambios:**
+- `go.mod`/`go.sum`: contratos `v0.1.0-tracer.42`, platform-go `v0.1.10`, identidad `v0.1.7`, operacion `v0.1.21`, reportes `v0.1.6`, mensajeria `v0.1.9`, bff `v0.1.22`. catalogos sigue en `v0.1.8`. `go build` no pidió renombrar constantes de enum.
+- `cmd/core/main.go`: `Alcances: idn.Consultas().Alcances()` en operacion, reportes y mensajeria. Sin adaptador: los puertos están tipados con el contrato y el presupuesto de 2 s lo aplica la reconstrucción de cada consumidor (I3).
+- `internal/adapters/aptitud_recursos.go`: `ObtenerCliente` del puerto `AtomosCatalogo`, con `PresupuestoAptitud`.
+- `internal/adapters/bff_identidad.go`: `FijarClientesSujeto` sobre la fachada de gobierno.
+- `.github/workflows/ci.yml`: `arch-test@v0.1.10` (`listarAlcances` en `restricted_edges`).
+- Pruebas: `TestAlcanceWorkersConReconstruccion` (falla si un módulo no recibe `Alcances`), `TestBFFIdentidadFijarClientesSujeto`, `ObtenerCliente` en `TestAtomosParidadConHTTP`, `TestBFFOperacionModificarUnidadClienteId` (`cliente_id` ausente, `null` e id llegan tal cual), `PUT .../alcance/clientes` en `TestAdministracionConIDPAdmin`, `GET /api/v1/alcances` como 404 público y `alcance.cambiado` en el registro de tipos.
+- `cmd/migrate` no cambia: aplica `identidad/0011`, `viajes/0006`, `roster/0004`, `reportes/0004` y `mensajeria/0010` desde los pines.
+- Rutas: core no monta las de identidad (DEC-137). `PUT /api/v1/sujetos/{id}/alcance/clientes` lo sirve el bff; `GET /api/v1/alcances` no es público.
+
+**Verificado:** `gofmt`, `go vet`, `go test` (con y sin `devauth`, y `-tags nats`), `arch-test@v0.1.10`. Contra Postgres 17 y NATS reales: `cmd/migrate` en una base vacía aplica las cinco migraciones nuevas, con los grants a su rol dueño. `core -tags devauth` arranca con los tres workers en `ok`. Un `PUT` del administrador por el bff llena `viajes`, `reportes` y `mensajeria.alcance_sujeto` por el bus. Tras vaciar las proyecciones y reiniciar, el snapshot las reconstruye. Sin permiso de lectura en `identidad.alcance_efectivo`, `/ready` responde 503.
+
+**Hueco conocido (anterior a este cambio):** volver a correr `cmd/migrate` sobre una base ya migrada falla en `identidad/0003_sesion_idp_session_id.sql`, que no usa `IF NOT EXISTS`. Pasa igual con el `cmd/migrate` de `pf-core-d`. Las cinco migraciones nuevas sí se pueden reaplicar.
+
+**Archivos modificados:**
+- `cmd/core/main.go`, `cmd/core/wiring_test.go`
+- `internal/adapters/aptitud_recursos.go`, `internal/adapters/aptitud_recursos_test.go`, `internal/adapters/bff_identidad.go`, `internal/adapters/bff_identidad_test.go`, `internal/adapters/bff_operacion_test.go`
+- `internal/busregistry/busregistry_test.go`
+- `.github/workflows/ci.yml`, `go.mod`, `go.sum`, `README.md`
+- `CHANGELOG.md`
+
 ## 2026-11-10 14:40 — Administración de usuarios, organizaciones y alcance (tracer.40, E8-T19)
 
 **Para quién:** el administrador que da de alta usuarios y organizaciones desde `/administracion` del panel, y el Jefe Operativo que asigna unidades a Monitoristas. Antes, en core las rutas de administración del bff no existían, la lectura de clientes por lote ignoraba `ids` y `identidad` no recibía `IDPAdmin`, así que el alta, la edición y el cambio de rol habrían respondido 503. Ahora las quince rutas de administración del bff responden contra identidad, catalogos y Keycloak reales.

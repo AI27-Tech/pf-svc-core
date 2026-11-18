@@ -46,8 +46,12 @@ func (f *catalogosFake) AptitudCustodio(ctx context.Context, _, _ catclient.Id) 
 	return f.responder(ctx)
 }
 
-func (f *catalogosFake) ObtenerCliente(context.Context, catclient.Id) (*catclient.Cliente, error) {
-	panic("no debe invocarse en estas pruebas")
+// ObtenerCliente lo usa el puerto AtomosCatalogo (cliente de la unidad, tracer.41).
+func (f *catalogosFake) ObtenerCliente(ctx context.Context, _ catclient.Id) (*catclient.Cliente, error) {
+	if _, err := f.responder(ctx); err != nil {
+		return nil, err
+	}
+	return &catclient.Cliente{}, nil
 }
 
 func (f *catalogosFake) ObtenerContrato(context.Context, catclient.Id, *catclient.MarcaTiempo) (*catclient.Contrato, error) {
@@ -210,6 +214,10 @@ func TestAtomosParidadConHTTP(t *testing.T) {
 		},
 		"ObtenerCustodio": func(a *AptitudRecursosEnProceso, ctx context.Context) error {
 			_, err := a.ObtenerCustodio(ctx, catclient.Id{})
+			return err
+		},
+		"ObtenerCliente": func(a *AptitudRecursosEnProceso, ctx context.Context) error {
+			_, err := a.ObtenerCliente(ctx, catclient.Id{})
 			return err
 		},
 	}

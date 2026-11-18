@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	opclient "github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go/operacion"
 	platformerrors "github.com/AI27-Tech/pf-pkg-platform-go/errors"
 	bff "github.com/AI27-Tech/pf-svc-bff"
@@ -19,6 +21,8 @@ type operacionFake struct {
 	err      error
 	retardo  time.Duration
 	ctxVisto context.Context
+	// modVisto captura el cuerpo que llega a ModificarUnidad.
+	modVisto opclient.UnidadModificacion
 }
 
 var _ operacion.ConsultasAPI = (*operacionFake)(nil)
@@ -295,7 +299,8 @@ func (f *operacionFake) ObtenerUnidad(ctx context.Context, id opclient.Id) (*opc
 	return &opclient.Unidad{Id: id}, nil
 }
 
-func (f *operacionFake) ModificarUnidad(ctx context.Context, id opclient.Id, _ opclient.UnidadModificacion) (*opclient.Unidad, error) {
+func (f *operacionFake) ModificarUnidad(ctx context.Context, id opclient.Id, body opclient.UnidadModificacion) (*opclient.Unidad, error) {
+	f.modVisto = body
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
@@ -419,6 +424,35 @@ func TestBFFOperacionFlujoInterno(t *testing.T) {
 			err := llamar(NewBFFOperacion(fake), context.Background())
 			if got := platformerrors.CodigoDe(err); got != "recurso_no_disponible" {
 				t.Fatalf("código = %q (err %v); se esperaba recurso_no_disponible", got, err)
+			}
+		})
+	}
+}
+
+// TestBFFOperacionModificarUnidadClienteId (DEC-149 #2, #13): el adaptador pasa
+// el cuerpo sin rehacerlo, así que operacion distingue "no tocar el cliente"
+// (ClienteId nil) de "quitarlo" (&uuid.Nil, como traduce el bff el `null`) y de
+// fijarlo.
+func TestBFFOperacionModificarUnidadClienteId(t *testing.T) {
+	nulo := uuid.Nil
+	cliente := uuid.MustParse("00000000-0000-0000-0000-0000000000c1")
+	casos := []struct {
+		nombre string
+		in     *uuid.UUID
+	}{
+		{"ausente", nil},
+		{"null", &nulo},
+		{"id", &cliente},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			fake := &operacionFake{}
+			if _, err := NewBFFOperacion(fake).ModificarUnidad(context.Background(), opclient.Id{}, opclient.UnidadModificacion{ClienteId: c.in}); err != nil {
+				t.Fatalf("no se esperaba error: %v", err)
+			}
+			got := fake.modVisto.ClienteId
+			if (got == nil) != (c.in == nil) || (got != nil && *got != *c.in) {
+				t.Fatalf("ClienteId = %v; se esperaba %v", got, c.in)
 			}
 		})
 	}

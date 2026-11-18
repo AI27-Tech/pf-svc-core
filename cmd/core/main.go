@@ -184,8 +184,11 @@ func run() error {
 	montarRutas(srv.Mux(), modules)
 
 	// 7. Arrancar los workers que cada módulo declare, más los del bus de la
-	//    raíz, y drenarlos al apagar. identidad aporta su relay de outbox; bff
-	//    aporta su consumidor de sesion.revocada (con reconstrucción por snapshot).
+	//    raíz, y drenarlos al apagar. identidad aporta su relay de outbox (que
+	//    publica sesion.revocada y alcance.cambiado); bff aporta su consumidor de
+	//    sesion.revocada, y operacion, reportes y mensajeria su consumidor de
+	//    alcance.cambiado, todos con reconstrucción por snapshot. RunGroup
+	//    registra el Ready de cada worker en la readiness del proceso.
 	var workers []worker.Worker
 	for _, m := range modules {
 		workers = append(workers, m.Workers()...)
@@ -373,8 +376,19 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	// puerto Aptitud con la caché en proceso y abre el consumidor durable de
 	// catalogo.actualizado que la invalida (E5-T5). Sin Subscriber el módulo no
 	// cachea ni abre el consumidor (arranque standalone sin bus). El mismo
-	// adaptador cubre Atomos (lectura por id para armar el roster, E8-T21): sin
-	// él, crear o cambiar unidades responde 503.
+	// adaptador cubre Atomos (lectura por id para armar el roster, E8-T21, y el
+	// cliente de la unidad, tracer.41): sin él, crear o cambiar unidades
+	// responde 503.
+	//
+	// Alcance del monitoreo por cliente (DEC-149 #20, #22): con Subscriber,
+	// operacion, reportes y mensajeria abren cada uno su durable de
+	// alcance.cambiado (operacion-alcance, reportes-alcance, mensajeria-alcance),
+	// y con Alcances lo envuelven con la reconstrucción por snapshot + cursor, que
+	// deja la réplica not-ready hasta converger. Alcances es la sub-fachada en
+	// proceso de identidad, sin adaptador: los tres puertos están tipados con el
+	// contrato y el presupuesto de cada llamada lo aplica la reconstrucción, así
+	// que lo comparten con su adaptador HTTP (I3) sin duplicarlo aquí.
+	alcances := idn.Consultas().Alcances()
 	recursos := adapters.NewAptitudRecursos(cat.Consultas())
 	op, err := operacion.New(operacion.Pools{
 		Viajes:     p.opViajes,
@@ -386,6 +400,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 		Aptitud:      recursos,
 		Atomos:       recursos,
 		Revocacion:   adapters.NewRevocacionOperacion(idn.Consultas()),
+		Alcances:     alcances,
 		Verificador:  autenticador,
 		BusPublisher: busPublisher,
 		Broadcaster:  broadcaster,
@@ -404,6 +419,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	rep, err := reportes.New(reportes.Pools{Reportes: p.reportes}, reportes.Deps{
 		Catalogos:  adapters.NewReportesCatalogos(cat.Consultas()),
 		Revocacion: adapters.NewRevocacionReportes(idn.Consultas()),
+		Alcances:   alcances,
 		Subscriber: subscriber,
 	})
 	if err != nil {
@@ -417,14 +433,17 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	// Upgrade: abrir un segundo pool svc_mensajeria para Despacho cuando el worker
 	// de despacho exista. Sus aristas a catalogos y a identidad (revocación) son
 	// HTTP por diseño (mensajeria.md (f)); en el compuesto quedan nil en V1, igual
-	// que otras deps opcionales del scaffold. Recibe el bus para su relay de outbox
-	// y el consumidor de catalogo.actualizado.
+	// que otras deps opcionales del scaffold. La excepción es Alcances
+	// (listarAlcances, DEC-149 #20), en proceso como en operacion y reportes: sin
+	// ella, su proyección de alcance.cambiado solo se llenaría con eventos nuevos.
+	// Recibe el bus para su relay de outbox y sus consumidores.
 	msg, err := mensajeria.New(mensajeria.Pools{
 		Chat:     p.mensajeria,
 		Despacho: p.mensajeria,
 	}, mensajeria.Deps{
 		Publisher:         busPublisher,
 		Subscriber:        subscriber,
+		Alcances:          alcances,
 		VentanaDisponible: time.Duration(config.GetEnvInt(envMensajeriaDisponibleMinutos, 30)) * time.Minute,
 	})
 	if err != nil {

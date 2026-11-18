@@ -41,6 +41,7 @@ Adaptadores en proceso cableados:
 | `operacion/catalogos/reportes → identidad` (restringida, DEC-051) | `RevocacionEnProceso` | `operacion.Revocacion`, `catalogos.RevocacionPort`, `reportes.RevocacionPort` |
 | `bff → operacion` | `BFFOperacionEnProceso` | `bff.OperacionPort` |
 | `bff → identidad` | `BFFIdentidadEnProceso` | `bff.IdentidadPort` |
+| `operacion/reportes/mensajeria → identidad` (`listarAlcances`, DEC-149 #20) | sin adaptador: `identidad.Consultas().Alcances()` (el presupuesto lo aplica la reconstrucción del consumidor) | `operacion.Alcances`, `reportes.AlcancesPort`, `mensajeria.Alcances` |
 
 **Scaffold / brechas conocidas:** los servicios de dominio de los módulos son
 scaffold, así que las llamadas síncronas devuelven "no implementado" en runtime;

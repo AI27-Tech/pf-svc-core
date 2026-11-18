@@ -99,6 +99,20 @@ func (a *AptitudRecursosEnProceso) ObtenerCustodio(ctx context.Context, custodio
 	return c, nil
 }
 
+// ObtenerCliente lee el cliente por id para validar el `cliente_id` de una
+// unidad (tracer.41, DEC-149 #2), con la misma semántica: el no_encontrado se
+// propaga y el roster lo vuelve 400.
+func (a *AptitudRecursosEnProceso) ObtenerCliente(ctx context.Context, clienteID catclient.Id) (*catclient.Cliente, error) {
+	ctx, cancel := context.WithTimeout(ctx, operacion.PresupuestoAptitud)
+	defer cancel()
+
+	c, err := a.consultas.ObtenerCliente(ctx, clienteID)
+	if err != nil {
+		return nil, traducirError(ctx, "ObtenerCliente", err)
+	}
+	return c, nil
+}
+
 // traducirError mantiene la misma taxonomía que el adaptador HTTP de operacion:
 //   - un vencimiento del presupuesto o una cancelación del contexto se traduce a
 //     Degradado (la aptitud es informativa y no gatea, DEC-055), igual que

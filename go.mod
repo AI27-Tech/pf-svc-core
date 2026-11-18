@@ -8,14 +8,15 @@ go 1.27
 // (los cinco módulos de core). Sin replace a rutas locales ni go.work versionado
 // (00 regla 7).
 require (
-	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.40
-	github.com/AI27-Tech/pf-pkg-platform-go v0.1.9
-	github.com/AI27-Tech/pf-svc-bff v0.1.21
+	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.42
+	github.com/AI27-Tech/pf-pkg-platform-go v0.1.10
+	github.com/AI27-Tech/pf-svc-bff v0.1.22
 	github.com/AI27-Tech/pf-svc-catalogos v0.1.8
-	github.com/AI27-Tech/pf-svc-identidad v0.1.6
-	github.com/AI27-Tech/pf-svc-mensajeria v0.1.8
-	github.com/AI27-Tech/pf-svc-operacion v0.1.20
-	github.com/AI27-Tech/pf-svc-reportes v0.1.5
+	github.com/AI27-Tech/pf-svc-identidad v0.1.7
+	github.com/AI27-Tech/pf-svc-mensajeria v0.1.9
+	github.com/AI27-Tech/pf-svc-operacion v0.1.21
+	github.com/AI27-Tech/pf-svc-reportes v0.1.6
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 )
 
@@ -27,7 +28,6 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

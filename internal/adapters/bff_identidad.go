@@ -181,6 +181,14 @@ func (a *BFFIdentidadEnProceso) FijarUnidadesSujeto(ctx context.Context, id idcl
 	return traducirErrorIdentidad(ctx, "FijarUnidadesSujeto", a.gobierno.FijarUnidadesSujeto(ctx, id, body))
 }
 
+// FijarClientesSujeto es fijarClientesSujeto ("mis clientes", DEC-149 #18). El
+// bff ya validó los clientes contra catalogos antes de llamar (DEC-149 #21).
+func (a *BFFIdentidadEnProceso) FijarClientesSujeto(ctx context.Context, id idclient.Id, body idclient.ClientesSujetoEntrada) error {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoIdentidad)
+	defer cancel()
+	return traducirErrorIdentidad(ctx, "FijarClientesSujeto", a.gobierno.FijarClientesSujeto(ctx, id, body))
+}
+
 // FijarSubordinadosSujeto es fijarSubordinadosSujeto.
 func (a *BFFIdentidadEnProceso) FijarSubordinadosSujeto(ctx context.Context, id idclient.Id, body idclient.SubordinadosSujetoEntrada) error {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoIdentidad)

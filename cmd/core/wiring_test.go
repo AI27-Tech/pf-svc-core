@@ -12,6 +12,7 @@ import (
 	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
 	"github.com/AI27-Tech/pf-pkg-platform-go/bus"
 	busmem "github.com/AI27-Tech/pf-pkg-platform-go/bus/memory"
+	"github.com/AI27-Tech/pf-pkg-platform-go/worker"
 	"github.com/AI27-Tech/pf-svc-core/internal/busregistry"
 	identidad "github.com/AI27-Tech/pf-svc-identidad"
 )
@@ -35,6 +36,17 @@ func (autenticadorNulo) VerifyToken(context.Context, string) (*auth.Claims, erro
 // bus en reportes.
 func nombresDeWorkers(t *testing.T, b *busmem.Bus, conSubscriber bool) []string {
 	t.Helper()
+	var nombres []string
+	for _, w := range workersDe(t, b, conSubscriber) {
+		nombres = append(nombres, w.Name())
+	}
+	return nombres
+}
+
+// workersDe construye los módulos como run() y devuelve los workers que run()
+// pasa a RunGroup (sin los del bus de la raíz).
+func workersDe(t *testing.T, b *busmem.Bus, conSubscriber bool) []worker.Worker {
+	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	var sub bus.Subscriber
 	if conSubscriber {
@@ -44,16 +56,48 @@ func nombresDeWorkers(t *testing.T, b *busmem.Bus, conSubscriber bool) []string 
 	if err != nil {
 		t.Fatalf("construirModulos: %v", err)
 	}
-	var nombres []string
+	var ws []worker.Worker
 	for _, m := range modules {
-		for _, w := range m.Workers() {
-			nombres = append(nombres, w.Name())
-		}
+		ws = append(ws, m.Workers()...)
 	}
-	for _, w := range idn.Workers() {
+	return append(ws, idn.Workers()...)
+}
+
+// TestAlcanceWorkersConReconstruccion (DEC-149 #20): con Subscriber, operacion,
+// reportes y mensajeria aportan su worker de alcance.cambiado y entran al grupo
+// que arranca run(). Que cada uno salga con el nombre de la reconstrucción
+// ("<modulo>-alcance", no "bus-durable:...") y not-ready antes de converger
+// prueba que recibió Deps.Alcances: sin él, el worker sería la suscripción
+// desnuda. RunGroup registra ese Ready como "worker:<nombre>" en la readiness
+// del proceso, así que la réplica no recibe tráfico hasta cargar el snapshot.
+func TestAlcanceWorkersConReconstruccion(t *testing.T) {
+	con := map[string]worker.Worker{}
+	var nombres []string
+	for _, w := range workersDe(t, busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{}), true) {
+		con[w.Name()] = w
 		nombres = append(nombres, w.Name())
 	}
-	return nombres
+	for _, nombre := range []string{"operacion-alcance", "reportes-alcance", "mensajeria-alcance"} {
+		w, ok := con[nombre]
+		if !ok {
+			t.Errorf("falta el worker %q entre %v", nombre, nombres)
+			continue
+		}
+		err := w.Ready(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "reconstrucción de alcance") {
+			t.Errorf("%s: Ready = %v; se esperaba not-ready de la reconstrucción", nombre, err)
+		}
+	}
+
+	sin := nombresDeWorkers(t, busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{}), false)
+	if contieneSubcadena(sin, "-alcance") {
+		t.Fatalf("sin Subscriber no debía haber consumidores de alcance; sin=%v", sin)
+	}
+
+	// Los nombres no chocan: RunGroup rechaza un nombre duplicado al arrancar.
+	if todos := workersDe(t, busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{}), true); len(con) != len(todos) {
+		t.Fatalf("hay nombres de worker duplicados: %d nombres para %d workers", len(con), len(todos))
+	}
 }
 
 // TestReportesConsumeConSubscriber verifica el cableado del Paso 3 (E6-T1): con
@@ -186,6 +230,9 @@ func TestRutaNativaSinBFFEs404(t *testing.T) {
 		{"DELETE", "/api/v1/sesiones/00000000-0000-0000-0000-000000000000"},
 		{"GET", "/api/v1/sesiones/revocadas"},
 		{"GET", "/api/v1/sesiones/00000000-0000-0000-0000-000000000000"},
+		// listarAlcances es solo para servicio interno (DEC-149 #20): las
+		// proyecciones de core lo leen en proceso, nunca por el mux público.
+		{"GET", "/api/v1/alcances"},
 	}
 	for _, n := range nativas {
 		rec := httptest.NewRecorder()
@@ -234,6 +281,11 @@ func TestAdministracionConIDPAdmin(t *testing.T) {
 	if _, patron := nativo.Handler(httptest.NewRequest("POST", "/api/v1/sujetos", nil)); patron != "POST /api/v1/sujetos" {
 		t.Fatalf("identidad no montó el gobierno (patrón %q): IDPAdmin no llegó a identidad.Deps", patron)
 	}
+	// identidad sí sirve listarAlcances en su modo standalone; en core no se
+	// monta (TestRutaNativaSinBFFEs404), así que no queda expuesto.
+	if _, patron := nativo.Handler(httptest.NewRequest("GET", "/api/v1/alcances", nil)); patron != "GET /api/v1/alcances" {
+		t.Fatalf("identidad no expone listarAlcances en su mux nativo (patrón %q)", patron)
+	}
 
 	const id = "00000000-0000-0000-0000-000000000001"
 	rutas := []struct{ metodo, ruta string }{
@@ -247,6 +299,7 @@ func TestAdministracionConIDPAdmin(t *testing.T) {
 		{"POST", "/api/v1/sujetos/" + id + "/revocaciones"},
 		{"GET", "/api/v1/sujetos/" + id + "/alcance"},
 		{"PUT", "/api/v1/sujetos/" + id + "/alcance/unidades"},
+		{"PUT", "/api/v1/sujetos/" + id + "/alcance/clientes"}, // "mis clientes", DEC-149 #18
 		{"PUT", "/api/v1/sujetos/" + id + "/alcance/subordinados"},
 		{"GET", "/api/v1/organizaciones"},
 		{"POST", "/api/v1/organizaciones"},

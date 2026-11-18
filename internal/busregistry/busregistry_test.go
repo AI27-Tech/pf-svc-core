@@ -20,6 +20,7 @@ func TestNuevoAceptaTiposDelContrato(t *testing.T) {
 		{"viaje.estado_cambiado", 1, true},
 		{"sesion.revocada", 1, true},
 		{"catalogo.actualizado", 1, true},
+		{"alcance.cambiado", 1, true}, // DEC-149 #20: lo publica identidad, lo consumen operacion, reportes y mensajeria
 		{"tipo.inventado", 1, false},
 		{"viaje.estado_cambiado", 99, false},
 	}

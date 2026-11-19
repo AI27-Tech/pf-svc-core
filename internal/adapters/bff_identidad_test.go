@@ -37,3 +37,29 @@ func TestBFFIdentidadFijarClientesSujeto(t *testing.T) {
 		t.Fatalf("categoría = %v; se esperaba Degradado", got)
 	}
 }
+
+// TestBFFIdentidadObtenerMiAlcance (DEC-149 #24): el adaptador delega en la
+// fachada de gobierno de identidad, sin id, y conserva su taxonomía. La fachada
+// sin construir responde Degradado sin panic; con el contexto cancelado, el
+// adaptador envuelve el error con su operación.
+func TestBFFIdentidadObtenerMiAlcance(t *testing.T) {
+	a := NewBFFIdentidad(identidad.ConsultasAPI{})
+
+	out, err := a.ObtenerMiAlcance(context.Background())
+	if out != nil {
+		t.Fatalf("con la fachada sin construir no debe haber alcance: %+v", out)
+	}
+	if got := platformerrors.AsCategory(err); got != platformerrors.CategoryDegradado {
+		t.Fatalf("categoría = %v (err %v); se esperaba Degradado", got, err)
+	}
+	if !strings.Contains(err.Error(), "identidad: el gobierno en proceso no está construido") {
+		t.Fatalf("el error no viene de la fachada de gobierno de identidad: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = a.ObtenerMiAlcance(ctx)
+	if !strings.Contains(err.Error(), "bff: ObtenerMiAlcance contra identidad (en proceso) falló") {
+		t.Fatalf("con el contexto cancelado, el adaptador no tradujo el error: %v", err)
+	}
+}

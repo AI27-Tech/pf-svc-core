@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-11-19 — Pins: identidad `v0.1.8` y bff `v0.1.23`
+
+**Para quién:** quien despliega `core`. `cmd/migrate` ya se puede correr más de una vez sobre la misma base (DT-25), y el panel recibe 403 en la ficha técnica para `ejecutivo` y `reaccion` (DEC-149 #23).
+
+**Cambios:**
+- `pf-svc-identidad` `v0.1.7` a `v0.1.8`: `0003_sesion_idp_session_id.sql` usa `ADD COLUMN IF NOT EXISTS`.
+- `pf-svc-bff` `v0.1.22` a `v0.1.23`: `obtenerAsignacion` responde 403 a `ejecutivo` y `reaccion`.
+
+**Verificado:** `cmd/migrate` dos veces sobre Postgres 17 vacío: con `v0.1.8` ambas pasadas salen con 0; con `v0.1.7` la segunda falla en `identidad/0003` (`column "idp_session_id" ... already exists`). `go build`, `vet`, `gofmt`, `go test ./...` y `arch-test@v0.1.10` en verde.
+
 ## 2026-11-18 16:20 — Alcance del monitoreo por cliente (DEC-149, tracer.42)
 
 **Para quién:** el Monitorista, el Supervisor y el Coordinador, que en el binario compuesto ya ven solo los viajes, el dashboard y las emergencias de los clientes de su lista "mis clientes"; y el Jefe Operativo y el administrador, que la asignan desde `/roster`. Para quien opera el binario: tres workers nuevos (`operacion-alcance`, `reportes-alcance`, `mensajeria-alcance`) que dejan la réplica not-ready hasta cargar el snapshot de alcances de identidad.

@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-11-19 — `obtenerMiAlcance` en `core`: pins y adaptador en proceso (tracer.43, DEC-149 #24)
+
+**Para quién:** quien despliega `core` y el panel, que ya puede leer su alcance con `GET /api/v1/sesion/alcance`.
+
+**Cambios:**
+- `BFFIdentidadEnProceso.ObtenerMiAlcance`: delega en la fachada de gobierno de identidad, sin id. Sin él `core` no compila con el `bff` nuevo, porque el puerto ganó el método.
+- `go.mod`: contratos a `v0.1.0-tracer.43`; `pf-svc-identidad` y `pf-svc-bff` provisionalmente a sus commits de `-d` (`f9490b4` y `a63fd59`). **Pendiente antes de pasar de borrador:** cambiarlos por los tags de `-m` y repetir las pruebas.
+- Prueba del adaptador: sin la fachada construida responde `Degradado` sin panic, y con el contexto cancelado envuelve el error con su operación.
+
+**Verificado:** `go build`, `vet`, `gofmt`, `go test ./...` y `arch-test@v0.1.10`. De punta a punta con `core` real (build `devauth`), Postgres 17 migrado con `cmd/migrate` y NATS, y un Monitorista, un Supervisor, un Jefe Operativo y un Administrador sembrados:
+- Monitorista sin clientes: `200` con `[]`. Con "mis clientes" fijados por `fijarClientesSujeto`: sus dos clientes.
+- Supervisor con ese Monitorista de subordinado: la unión de los clientes de sus subordinados.
+- `jefe_operativo` y `administrador`: `403`. Sin token: `401`. `obtenerAlcanceSujeto` no cambia.
+- Un cliente desactivado se rechaza con `400` al editar la lista (DEC-149 #21).
+
 ## 2026-11-19 — Pins: identidad `v0.1.8` y bff `v0.1.23`
 
 **Para quién:** quien despliega `core`. `cmd/migrate` ya se puede correr más de una vez sobre la misma base (DT-25), y el panel recibe 403 en la ficha técnica para `ejecutivo` y `reaccion` (DEC-149 #23).

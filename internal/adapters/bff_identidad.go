@@ -174,6 +174,15 @@ func (a *BFFIdentidadEnProceso) ObtenerAlcanceSujeto(ctx context.Context, id idc
 	return out, traducirErrorIdentidad(ctx, "ObtenerAlcanceSujeto", err)
 }
 
+// ObtenerMiAlcance es obtenerMiAlcance (DEC-149 #24). Sin id: la fachada de
+// identidad resuelve al sujeto por el idp_subject del token en el ctx.
+func (a *BFFIdentidadEnProceso) ObtenerMiAlcance(ctx context.Context) (*idclient.MiAlcance, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoIdentidad)
+	defer cancel()
+	out, err := a.gobierno.ObtenerMiAlcance(ctx)
+	return out, traducirErrorIdentidad(ctx, "ObtenerMiAlcance", err)
+}
+
 // FijarUnidadesSujeto es fijarUnidadesSujeto.
 func (a *BFFIdentidadEnProceso) FijarUnidadesSujeto(ctx context.Context, id idclient.Id, body idclient.UnidadesSujetoEntrada) error {
 	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoIdentidad)

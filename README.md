@@ -70,6 +70,7 @@ falten, no solo la primera):
 | `DB_OP_BITACORA_URL` | `op_bitacora` |
 | `DB_OP_AUDITORIA_URL` | `op_auditoria` |
 | `DB_OP_ROSTER_URL` | `op_roster` |
+| `DB_OP_SOLICITUDES_URL` | `op_solicitudes` (módulo `solicitudes` de operacion; como las demás es obligatoria: sin ella `core` termina al arrancar, nombrando las variables que faltan) |
 | `DB_SVC_REPORTES_URL` | `svc_reportes` |
 | `DB_SVC_IDENTIDAD_URL` | `svc_identidad` |
 
@@ -108,7 +109,7 @@ SERVICE_NAME=core HTTP_ADDR=:8080 \
   JWKS_URL=... JWT_AUDIENCE=ai27-internal JWT_ISSUER=... \
   IDENTIDAD_IDP=keycloak IDENTIDAD_KEYCLOAK_...=... \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
-  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
+  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... DB_OP_SOLICITUDES_URL=... \
   DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \
   go run ./cmd/core
 ```
@@ -125,7 +126,7 @@ con sus tokens de desarrollo:
 ```bash
 SERVICE_NAME=core HTTP_ADDR=:8080 IDENTIDAD_IDP=keycloak IDENTIDAD_KEYCLOAK_...=... \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
-  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
+  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... DB_OP_SOLICITUDES_URL=... \
   DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \
   go run -tags devauth ./cmd/core
 
@@ -150,6 +151,11 @@ de desarrollo es el Subject `"<rol>@<tenant>"`, p. ej.:
 ```bash
 curl -H "Authorization: Bearer jefe_operativo@tenant-dev-alfa" localhost:8080/...
 ```
+
+El token es legible, pero los claims llevan UUID: el tenant es fijo por alias
+(`tenant-dev-alfa` = `00000000-0000-4000-8000-0000000000a1`, `tenant-dev-beta` =
+`...0b1`) y el sujeto se deriva del token, así que son estables entre arranques
+(operacion y mensajeria rechazan un tenant o sujeto que no sea UUID).
 
 Una petición sin una identidad de desarrollo válida se rechaza igual que sin JWT
 (fallo cerrado). El stub **no emite alcance** (unidad/cliente): el alcance se
@@ -182,3 +188,34 @@ resuelve en servidor (DEC-053).
 - **`sesion.revocada`:** cada módulo protegido tendrá su propia suscripción
   durable, proyección y readiness (DEC-057/058); se cablea cuando los módulos
   existan y el evento esté en la versión fijada de `pf-pkg-contracts`.
+
+## Pruebas de integración contra Postgres
+
+`cmd/migrate` (dos corridas sobre una base vacía, grants y `search_path` de
+`op_solicitudes`) y el humo de `cmd/core` (solicitud → cotización → pago →
+aprobación → viaje y conversación; solo con `-tags devauth`) corren contra un
+Postgres real. Sin `CORE_TEST_PG_ADMIN_URL` se saltan; el CI del repo las corre
+con un servicio Postgres y falla si no responde.
+
+`internal/pgtest` resetea la configuración (`ALTER ROLE ... RESET ALL`) de **todo**
+rol `op_*` y `svc_*` **del cluster**, no de la base. Por eso se niega a correr
+(`t.Fatalf`, no salta) si:
+
+1. `CORE_TEST_PG_DESECHABLE` no es `1`: el autor declara que el cluster es solo de pruebas.
+2. El cluster tiene alguna base fuera de `postgres`, `template0`, `template1` y las
+   `core_it_*` que crea el propio pgtest (señal de un Postgres de desarrollo).
+
+Nunca lo apuntes al Postgres del stack local. Levanta uno efímero con auth `trust`
+(los roles de app se crean sin contraseña y se conectan con la misma URL cambiando
+el usuario) y corre las pruebas con `-p 1` (dos paquetes en paralelo se pisarían
+la configuración de roles):
+
+```bash
+initdb -D /tmp/pgcore.dir -U postgres --auth=trust
+mkdir -p /tmp/pgcore.sock
+pg_ctl -D /tmp/pgcore.dir -o "-p 54329 -k /tmp/pgcore.sock -c listen_addresses=''" -l /tmp/pgcore.log start
+
+CORE_TEST_PG_ADMIN_URL='postgres://postgres@/postgres?host=/tmp/pgcore.sock&port=54329' \
+CORE_TEST_PG_DESECHABLE=1 \
+  go test -count=1 -p 1 -tags devauth ./...
+```

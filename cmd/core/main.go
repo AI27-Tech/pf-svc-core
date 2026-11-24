@@ -56,9 +56,13 @@ const (
 	envDBOpBitacora   = "DB_OP_BITACORA_URL"
 	envDBOpAuditoria  = "DB_OP_AUDITORIA_URL"
 	envDBOpRoster     = "DB_OP_ROSTER_URL"
-	envDBReportes     = "DB_SVC_REPORTES_URL"
-	envDBIdentidad    = "DB_SVC_IDENTIDAD_URL"
-	envDBMensajeria   = "DB_SVC_MENSAJERIA_URL"
+	// envDBOpSolicitudes es el pool del módulo `solicitudes` de operacion (ADR 38
+	// y 39). Es obligatoria como las demás de rolesDeBD: sin
+	// ella core termina al arrancar listando las variables que faltan.
+	envDBOpSolicitudes = "DB_OP_SOLICITUDES_URL"
+	envDBReportes      = "DB_SVC_REPORTES_URL"
+	envDBIdentidad     = "DB_SVC_IDENTIDAD_URL"
+	envDBMensajeria    = "DB_SVC_MENSAJERIA_URL"
 	// envNATSURL es la URL del broker de eventos (ADR 29/32). El bus es parte
 	// del camino de datos: core falla al arrancar si no responde, igual que con
 	// los pools (ver abrirBus).
@@ -79,6 +83,7 @@ var rolesDeBD = []struct {
 	{envDBOpBitacora, "op_bitacora"},
 	{envDBOpAuditoria, "op_auditoria"},
 	{envDBOpRoster, "op_roster"},
+	{envDBOpSolicitudes, "op_solicitudes"},
 	{envDBReportes, "svc_reportes"},
 	{envDBIdentidad, "svc_identidad"},
 	{envDBMensajeria, "svc_mensajeria"},
@@ -228,15 +233,16 @@ func run() error {
 // pools agrupa los pools por rol abiertos por la raíz. Un pool por rol, nunca
 // compartido (I1). bff no tiene pool.
 type pools struct {
-	catalogos    *pgxpool.Pool
-	opViajes     *pgxpool.Pool
-	opAsignacion *pgxpool.Pool
-	opBitacora   *pgxpool.Pool
-	opAuditoria  *pgxpool.Pool
-	opRoster     *pgxpool.Pool
-	reportes     *pgxpool.Pool
-	identidad    *pgxpool.Pool
-	mensajeria   *pgxpool.Pool
+	catalogos     *pgxpool.Pool
+	opViajes      *pgxpool.Pool
+	opAsignacion  *pgxpool.Pool
+	opBitacora    *pgxpool.Pool
+	opAuditoria   *pgxpool.Pool
+	opRoster      *pgxpool.Pool
+	opSolicitudes *pgxpool.Pool
+	reportes      *pgxpool.Pool
+	identidad     *pgxpool.Pool
+	mensajeria    *pgxpool.Pool
 }
 
 // abrirPools abre un pool por cada rol declarado en rolesDeBD, lo registra en la
@@ -261,15 +267,16 @@ func abrirPools(ctx context.Context, srv *server.Server) (pools, func(), error) 
 		srv.Registry().RegisterCheck("db_"+r.rol, p.CheckFunc())
 	}
 	return pools{
-		catalogos:    abiertos["svc_catalogos"],
-		opViajes:     abiertos["op_viajes"],
-		opAsignacion: abiertos["op_asignacion"],
-		opBitacora:   abiertos["op_bitacora"],
-		opAuditoria:  abiertos["op_auditoria"],
-		opRoster:     abiertos["op_roster"],
-		reportes:     abiertos["svc_reportes"],
-		identidad:    abiertos["svc_identidad"],
-		mensajeria:   abiertos["svc_mensajeria"],
+		catalogos:     abiertos["svc_catalogos"],
+		opViajes:      abiertos["op_viajes"],
+		opAsignacion:  abiertos["op_asignacion"],
+		opBitacora:    abiertos["op_bitacora"],
+		opAuditoria:   abiertos["op_auditoria"],
+		opRoster:      abiertos["op_roster"],
+		opSolicitudes: abiertos["op_solicitudes"],
+		reportes:      abiertos["svc_reportes"],
+		identidad:     abiertos["svc_identidad"],
+		mensajeria:    abiertos["svc_mensajeria"],
 	}, cerrar, nil
 }
 
@@ -369,7 +376,7 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 		return nil, nil, fmt.Errorf("construir catalogos: %w", err)
 	}
 
-	// operacion: cinco pools, uno por rol/esquema (ADR 33). La arista a
+	// operacion: seis pools, uno por rol/esquema (ADR 33; solicitudes, ADR 38 y 39). La arista a
 	// catalogos se resuelve con el adaptador en proceso sobre cat.Consultas();
 	// la restringida a identidad para revocación, con el adaptador de revocación.
 	// Recibe además el Subscriber durable del bus: con él, operacion envuelve su
@@ -391,11 +398,12 @@ func construirModulos(p pools, busPublisher bus.Publisher, subscriber bus.Subscr
 	alcances := idn.Consultas().Alcances()
 	recursos := adapters.NewAptitudRecursos(cat.Consultas())
 	op, err := operacion.New(operacion.Pools{
-		Viajes:     p.opViajes,
-		Asignacion: p.opAsignacion,
-		Bitacora:   p.opBitacora,
-		Auditoria:  p.opAuditoria,
-		Roster:     p.opRoster,
+		Viajes:      p.opViajes,
+		Asignacion:  p.opAsignacion,
+		Bitacora:    p.opBitacora,
+		Auditoria:   p.opAuditoria,
+		Roster:      p.opRoster,
+		Solicitudes: p.opSolicitudes,
 	}, operacion.Deps{
 		Aptitud:      recursos,
 		Atomos:       recursos,

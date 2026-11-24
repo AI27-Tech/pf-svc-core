@@ -23,6 +23,23 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_PAT: ${{ secrets.GH_PAT }}
+      # Pruebas de integración (internal/pgtest): Postgres dedicado a pruebas, auth
+      # trust y superusuario sin contraseña. La bandera declara el cluster desechable.
+      CORE_TEST_PG_ADMIN_URL: postgres://postgres@localhost:5432/postgres?sslmode=disable
+      CORE_TEST_PG_DESECHABLE: "1"
+      NATS_URL: nats://127.0.0.1:4222
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -44,6 +61,26 @@ jobs:
       - name: Descargar dependencias
         run: go mod download
 
+      # Sin Postgres las pruebas de integración se saltarían en silencio: aquí
+      # el job falla si no responde.
+      - name: Verificar que Postgres responde
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U postgres && break
+            sleep 2
+          done
+          psql "$CORE_TEST_PG_ADMIN_URL" -v ON_ERROR_STOP=1 -c 'select 1'
+
+      # El servicio de NATS no admite argumentos (-js), así que va con docker run.
+      - name: Levantar NATS JetStream
+        run: |
+          docker run -d --name nats -p 4222:4222 nats:2-alpine -js
+          for i in $(seq 1 30); do
+            (exec 3<>/dev/tcp/127.0.0.1/4222) 2>/dev/null && exit 0
+            sleep 1
+          done
+          echo "ERROR: NATS no responde en 127.0.0.1:4222"; docker logs nats; exit 1
+
       # 1. Build y vet de producción (sin devauth), versiones exactas de go.mod.
       - name: Build (producción)
         run: go build ./...
@@ -52,14 +89,30 @@ jobs:
 
       # 2. Tests, incluidas las pruebas de arranque/drenado y de adaptadores (I3)
       #    cuando existan módulos cableados.
+      #    -p 1: pgtest resetea la configuración de roles del cluster, así que dos
+      #    paquetes con Postgres no pueden correr a la vez.
       - name: Test
-        run: go test ./...
+        run: go test -count=1 -p 1 ./...
 
       # 3. El stub de desarrollo compila con su tag.
       - name: Build con -tags devauth
         run: go build -tags devauth ./...
       - name: Test con -tags devauth
-        run: go test -tags devauth ./...
+        run: |
+          go test -count=1 -p 1 -v -tags devauth ./... | tee test-devauth.log
+          # El humo y cmd/migrate deben CORRER, no saltarse.
+          if grep -q -- '--- SKIP' test-devauth.log; then
+            echo "ERROR: hay pruebas saltadas"; grep -- '--- SKIP' test-devauth.log; exit 1
+          fi
+          for t in TestHumoSolicitudHastaViajeAprobadoYConversacion TestMigrateDosVecesYLlegaLoNuevo; do
+            grep -q -- "--- PASS: $t " test-devauth.log || { echo "ERROR: $t no corrió o no pasó"; exit 1; }
+          done
+
+      # bus_test.go (build tag nats) contra NATS JetStream real.
+      - name: Test con -tags nats
+        run: |
+          go test -count=1 -v -tags nats ./cmd/core | tee test-nats.log
+          grep -q -- '--- PASS: TestAbrirBusConectaYCierra' test-nats.log
 
       # 4. Compuerta anti-stub: el binario de producción NO contiene internal/devauth.
       - name: El binario de producción no contiene devauth

@@ -8,16 +8,17 @@ go 1.27
 // (los cinco módulos de core). Sin replace a rutas locales ni go.work versionado
 // (00 regla 7).
 require (
-	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.43
+	github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.46
 	github.com/AI27-Tech/pf-pkg-platform-go v0.1.10
-	github.com/AI27-Tech/pf-svc-bff v0.1.24
+	github.com/AI27-Tech/pf-svc-bff v0.1.25
 	github.com/AI27-Tech/pf-svc-catalogos v0.1.8
-	github.com/AI27-Tech/pf-svc-identidad v0.1.9
-	github.com/AI27-Tech/pf-svc-mensajeria v0.1.9
-	github.com/AI27-Tech/pf-svc-operacion v0.1.21
-	github.com/AI27-Tech/pf-svc-reportes v0.1.6
+	github.com/AI27-Tech/pf-svc-identidad v0.1.10
+	github.com/AI27-Tech/pf-svc-mensajeria v0.1.10
+	github.com/AI27-Tech/pf-svc-operacion v0.1.22
+	github.com/AI27-Tech/pf-svc-reportes v0.1.7
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/oapi-codegen/runtime v1.7.0
 )
 
 require (
@@ -36,7 +37,6 @@ require (
 	github.com/nats-io/nats.go v1.54.0 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	github.com/oapi-codegen/runtime v1.7.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect

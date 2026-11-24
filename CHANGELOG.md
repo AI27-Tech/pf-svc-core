@@ -7,6 +7,7 @@
 **Cambios:**
 - `internal/pgtest`: guarda de cluster dedicado a pruebas. `Nueva` resetea la configuración de todos los roles `op_*`/`svc_*` del cluster; ahora falla (no salta) si `CORE_TEST_PG_DESECHABLE` no es `1` o si el cluster tiene bases fuera de `postgres`, `template0`, `template1` y `core_it_*`. Con `pgtest_test.go` (la base ajena la ve la guarda; sin la variable falla).
 - `README.md`: cómo correr las pruebas de integración con un Postgres efímero.
+- `.github/workflows/ci.yml`: el job `build-test` tiene un servicio Postgres 17 (`trust`, superusuario `postgres` sin contraseña) con `CORE_TEST_PG_ADMIN_URL` y `CORE_TEST_PG_DESECHABLE=1`, y un NATS JetStream (`docker run`). Una verificación explícita falla el job si Postgres o NATS no responden. Ahora corren en CI `cmd/migrate`, el humo de `cmd/core` (con `-tags devauth`, con `-p 1`) y `bus_test.go` (`-tags nats`); el paso falla si hay pruebas `SKIP` o si el humo o `migrate` no pasan. Antes se saltaban en silencio.
 
 ## 2026-11-24 15:57 — `core` cablea las solicitudes (ola 3, tracer.46; DEC-148, ADR 38 y 39)
 

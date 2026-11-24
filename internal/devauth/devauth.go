@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
 	roles "github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go/roles"
 	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
 )
@@ -38,6 +40,16 @@ const (
 	EntornoProduccion Entorno = "produccion"
 )
 
+// Los tenants de desarrollo. Su alias (lo que va en el token, "<rol>@<alias>") es
+// legible; el TenantID de los claims es un UUID estable, porque el del cliente es
+// su cliente_id (DEC-112) y operacion rechaza con 403 un tenant que no lo sea.
+const (
+	AliasTenantAlfa = "tenant-dev-alfa"
+	AliasTenantBeta = "tenant-dev-beta"
+	TenantAlfaID    = "00000000-0000-4000-8000-0000000000a1"
+	TenantBetaID    = "00000000-0000-4000-8000-0000000000b1"
+)
+
 // usuarioFake modela una identidad de desarrollo: los mismos campos que
 // `auth.Claims` sin alcance (DEC-053).
 type usuarioFake struct {
@@ -48,10 +60,10 @@ type usuarioFake struct {
 }
 
 // Stub implementa auth.Authenticator resolviendo un token de desarrollo contra
-// un directorio de usuarios fake. El "token" de desarrollo es el Subject del
-// usuario fake; una petición sin un Subject conocido se rechaza (fallo cerrado).
+// un directorio de usuarios fake. El "token" de desarrollo es "<rol>@<alias del tenant>";
+// una petición con un token desconocido se rechaza (fallo cerrado).
 type Stub struct {
-	usuarios map[string]usuarioFake // clave: Subject (el token de dev)
+	usuarios map[string]usuarioFake // clave: el token de dev "<rol>@<alias del tenant>"
 }
 
 var _ auth.Authenticator = (*Stub)(nil)
@@ -71,17 +83,18 @@ func Nuevo(entorno Entorno) (*Stub, error) {
 		return nil, fmt.Errorf("devauth: el enum Rol del contrato tiene %d valores; se esperaban los 9 de DEC-053 y DEC-148 (brecha contractual, no se completa a mano)", len(roles.Todos))
 	}
 
-	tenants := []string{"tenant-dev-alfa", "tenant-dev-beta"}
+	tenants := []struct{ alias, id string }{{AliasTenantAlfa, TenantAlfaID}, {AliasTenantBeta, TenantBetaID}}
 	usuarios := make(map[string]usuarioFake, len(roles.Todos)*len(tenants))
 
 	for ti, tenant := range tenants {
 		for _, rol := range roles.Todos {
-			// Subject estable y legible: "<rol>@<tenant>". Es el token de dev.
-			subject := fmt.Sprintf("%s@%s", string(rol), tenant)
-			usuarios[subject] = usuarioFake{
-				Subject:  subject,
+			// El token de dev es legible: "<rol>@<alias del tenant>". El Subject de los
+			// claims es un UUID derivado y estable (DEC-049: mensajeria exige sujeto UUID).
+			token := fmt.Sprintf("%s@%s", string(rol), tenant.alias)
+			usuarios[token] = usuarioFake{
+				Subject:  uuid.NewSHA1(uuid.MustParse(tenant.id), []byte(token)).String(),
 				Rol:      rol,
-				TenantID: tenant,
+				TenantID: tenant.id,
 				SesionID: fmt.Sprintf("sesion-dev-%s-%d", string(rol), ti),
 			}
 		}
@@ -90,7 +103,7 @@ func Nuevo(entorno Entorno) (*Stub, error) {
 	return &Stub{usuarios: usuarios}, nil
 }
 
-// VerifyToken resuelve un token de desarrollo (el Subject de un usuario fake) a
+// VerifyToken resuelve un token de desarrollo ("<rol>@<alias del tenant>") a
 // los Claims equivalentes. Un token vacío o desconocido se rechaza igual que la
 // ausencia de JWT (fallo cerrado, DEC-049). La Audiencia de dominio se deriva
 // del rol con la misma regla del verificador real (cliente→Cliente, resto→Interno).
@@ -122,7 +135,7 @@ func (s *Stub) VerifyToken(ctx context.Context, tokenString string) (*auth.Claim
 }
 
 // Tokens devuelve, para diagnóstico y pruebas, los tokens de desarrollo
-// disponibles (un Subject por rol y tenant).
+// disponibles (uno por rol y tenant).
 func (s *Stub) Tokens() []string {
 	out := make([]string, 0, len(s.usuarios))
 	for k := range s.usuarios {

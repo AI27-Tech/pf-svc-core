@@ -152,6 +152,11 @@ de desarrollo es el Subject `"<rol>@<tenant>"`, p. ej.:
 curl -H "Authorization: Bearer jefe_operativo@tenant-dev-alfa" localhost:8080/...
 ```
 
+El token es legible, pero los claims llevan UUID: el tenant es fijo por alias
+(`tenant-dev-alfa` = `00000000-0000-4000-8000-0000000000a1`, `tenant-dev-beta` =
+`...0b1`) y el sujeto se deriva del token, así que son estables entre arranques
+(operacion y mensajeria rechazan un tenant o sujeto que no sea UUID).
+
 Una petición sin una identidad de desarrollo válida se rechaza igual que sin JWT
 (fallo cerrado). El stub **no emite alcance** (unidad/cliente): el alcance se
 resuelve en servidor (DEC-053).

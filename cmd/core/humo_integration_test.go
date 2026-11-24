@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AI27-Tech/pf-pkg-platform-go/auth"
 	busmem "github.com/AI27-Tech/pf-pkg-platform-go/bus/memory"
 	"github.com/AI27-Tech/pf-pkg-platform-go/server"
 	"github.com/AI27-Tech/pf-svc-core/internal/busregistry"
@@ -29,24 +28,6 @@ import (
 // outbox → bus en memoria → mensajeria, sobre Postgres real, con los pools por
 // rol de abrirPools y las migraciones de cmd/migrate. Necesita CORE_TEST_PG_ADMIN_URL
 // (ver internal/pgtest) y el tag devauth (usa los tokens del stub).
-
-// tenantAlfa es el tenant UUID del cliente de la prueba. Los tenants del stub
-// ("tenant-dev-alfa") no son UUID y operacion los rechaza (403 "organización
-// válida") y su sujeto ("rol@tenant") tampoco es UUID, que mensajeria exige
-// (boundary.Claims: "sin claims"). El humo delega en devauth y sustituye ambos.
-var tenantAlfa = uuid.MustParse("00000000-0000-4000-8000-0000000000a1")
-
-type devauthConTenantUUID struct{ *devauth.Stub }
-
-func (d devauthConTenantUUID) VerifyToken(ctx context.Context, token string) (*auth.Claims, error) {
-	c, err := d.Stub.VerifyToken(ctx, token)
-	if err != nil {
-		return nil, err
-	}
-	c.TenantID = tenantAlfa.String()
-	c.Subject = uuid.NewSHA1(tenantAlfa, []byte(c.Subject)).String()
-	return c, nil
-}
 
 // humo es el entorno armado: el mux público, la base y el bus.
 type humo struct {
@@ -87,7 +68,7 @@ func armarHumo(t *testing.T) *humo {
 		t.Fatalf("devauth: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	modules, idn, err := construirModulos(pls, b, b, b, devauthConTenantUUID{stub}, idpDePrueba(t), nil, logger)
+	modules, idn, err := construirModulos(pls, b, b, b, stub, idpDePrueba(t), nil, logger)
 	if err != nil {
 		t.Fatalf("construirModulos: %v", err)
 	}
@@ -133,7 +114,7 @@ func (h *humo) llamar(t *testing.T, metodo, ruta, rol string, cuerpo any) (int, 
 		r = bytes.NewReader(b)
 	}
 	req := httptest.NewRequest(metodo, ruta, r)
-	req.Header.Set("Authorization", "Bearer "+rol+"@tenant-dev-alfa")
+	req.Header.Set("Authorization", "Bearer "+rol+"@"+devauth.AliasTenantAlfa)
 	if cuerpo != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

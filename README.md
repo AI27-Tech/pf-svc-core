@@ -70,6 +70,7 @@ falten, no solo la primera):
 | `DB_OP_BITACORA_URL` | `op_bitacora` |
 | `DB_OP_AUDITORIA_URL` | `op_auditoria` |
 | `DB_OP_ROSTER_URL` | `op_roster` |
+| `DB_OP_SOLICITUDES_URL` | `op_solicitudes` (módulo `solicitudes` de operacion; sin él no hay rutas de solicitudes ni worker de vencimiento) |
 | `DB_SVC_REPORTES_URL` | `svc_reportes` |
 | `DB_SVC_IDENTIDAD_URL` | `svc_identidad` |
 
@@ -108,7 +109,7 @@ SERVICE_NAME=core HTTP_ADDR=:8080 \
   JWKS_URL=... JWT_AUDIENCE=ai27-internal JWT_ISSUER=... \
   IDENTIDAD_IDP=keycloak IDENTIDAD_KEYCLOAK_...=... \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
-  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
+  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... DB_OP_SOLICITUDES_URL=... \
   DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \
   go run ./cmd/core
 ```
@@ -125,7 +126,7 @@ con sus tokens de desarrollo:
 ```bash
 SERVICE_NAME=core HTTP_ADDR=:8080 IDENTIDAD_IDP=keycloak IDENTIDAD_KEYCLOAK_...=... \
   DB_SVC_CATALOGOS_URL=... DB_OP_VIAJES_URL=... DB_OP_ASIGNACION_URL=... \
-  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... \
+  DB_OP_BITACORA_URL=... DB_OP_AUDITORIA_URL=... DB_OP_ROSTER_URL=... DB_OP_SOLICITUDES_URL=... \
   DB_SVC_REPORTES_URL=... DB_SVC_IDENTIDAD_URL=... \
   go run -tags devauth ./cmd/core
 
@@ -182,3 +183,17 @@ resuelve en servidor (DEC-053).
 - **`sesion.revocada`:** cada módulo protegido tendrá su propia suscripción
   durable, proyección y readiness (DEC-057/058); se cablea cuando los módulos
   existan y el evento esté en la versión fijada de `pf-pkg-contracts`.
+
+## Pruebas de integración contra Postgres
+
+`cmd/migrate` (dos corridas sobre una base vacía, grants y `search_path` de
+`op_solicitudes`) y el humo de `cmd/core` (solicitud → cotización → pago →
+aprobación → viaje y conversación; solo con `-tags devauth`) se saltan si no hay
+cluster. Para correrlas, apunta `CORE_TEST_PG_ADMIN_URL` a un Postgres desechable
+con auth `trust` (los roles de app se crean sin contraseña y se conectan con la
+misma URL cambiando el usuario):
+
+```bash
+CORE_TEST_PG_ADMIN_URL='postgres://postgres@/postgres?host=/tmp&port=54329' \
+  go test -count=1 -p 1 -tags devauth ./cmd/...
+```

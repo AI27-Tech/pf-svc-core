@@ -21,6 +21,15 @@ func TestNuevoAceptaTiposDelContrato(t *testing.T) {
 		{"sesion.revocada", 1, true},
 		{"catalogo.actualizado", 1, true},
 		{"alcance.cambiado", 1, true}, // DEC-149 #20: lo publica identidad, lo consumen operacion, reportes y mensajeria
+		// Ola de solicitudes (tracer.45/46, DEC-148): los consume mensajeria
+		// (mensajeria-conversacion-solicitud y mensajeria-roles). Sin estar en el
+		// registro, el bus rechaza publicarlos y suscribirse.
+		{"solicitud.creada", 1, true},
+		{"solicitud.estado_cambiado", 1, true},
+		{"rol.asignado", 1, true},
+		{"rol.revocado", 1, true},
+		{"sujeto.desactivado", 1, true},
+		{"sujeto.reactivado", 1, true},
 		{"tipo.inventado", 1, false},
 		{"viaje.estado_cambiado", 99, false},
 	}

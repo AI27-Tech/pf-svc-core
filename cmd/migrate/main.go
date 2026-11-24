@@ -45,6 +45,9 @@ const envDBAdmin = "DB_ADMIN_URL"
 //   - op_viajes / op_asignacion: el outbox único de operacion vive en viajes
 //     (ADR 35); ambos lo consultan sin calificar (op_asignacion por la excepción
 //     de GRANT).
+//   - op_solicitudes: su relay y su publicador usan `outbox` sin calificar y el
+//     outbox del módulo es solicitudes.outbox; Aprobar apunta a viajes solo dentro
+//     de su transacción y lo restaura (operacion v0.1.22, aprobar.go).
 //   - svc_reportes: su consumidor registra el inbox con inbox.Registrar, que
 //     inserta en inbox_evento sin calificar el esquema.
 //   - svc_catalogos: el alta y la edición de vehículos y custodios (E8-T21)
@@ -54,6 +57,7 @@ var searchPathPorRol = []struct{ rol, esquema string }{
 	{"svc_catalogos", "catalogos"},
 	{"op_viajes", "viajes"},
 	{"op_asignacion", "viajes"},
+	{"op_solicitudes", "solicitudes"},
 	{"svc_reportes", "reportes"},
 	{"svc_mensajeria", "mensajeria"},
 }
@@ -132,7 +136,7 @@ func unEsquema(nombre, rol string, fsys embed.FS) migrate.Modulo {
 	}
 }
 
-// moduloOperacion arma el migrate.Modulo de operacion: sus cinco esquemas en el
+// moduloOperacion arma el migrate.Modulo de operacion: sus seis esquemas en el
 // Orden que exporta el módulo, cada uno con su rol dueño de RolPorEsquema. Las
 // dos fases de migrate.Aplicar reproducen la excepción de GRANT de op_asignacion
 // (ADR 33): primero los 0001 de los cinco, luego los grants.

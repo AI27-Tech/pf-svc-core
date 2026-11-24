@@ -16,14 +16,14 @@ func TestNuevo_RechazaProduccion(t *testing.T) {
 	}
 }
 
-func TestNuevo_OchoRolesDosTenants(t *testing.T) {
+func TestNuevo_NueveRolesDosTenants(t *testing.T) {
 	s, err := Nuevo(EntornoDesarrollo)
 	if err != nil {
 		t.Fatalf("Nuevo: %v", err)
 	}
-	// 8 roles × 2 tenants = 16 identidades fake.
-	if got := len(s.Tokens()); got != 16 {
-		t.Errorf("tokens de desarrollo = %d, se esperaban 16 (8 roles × 2 tenants)", got)
+	// 9 roles × 2 tenants = 18 identidades fake.
+	if got := len(s.Tokens()); got != 18 {
+		t.Errorf("tokens de desarrollo = %d, se esperaban 18 (9 roles × 2 tenants)", got)
 	}
 }
 
@@ -48,7 +48,7 @@ func TestVerifyToken_CadaRolYTenant(t *testing.T) {
 			if claims.TenantID != tenant {
 				t.Errorf("%q: TenantID = %q, se esperaba %q", token, claims.TenantID, tenant)
 			}
-			// Audiencia: cliente→Cliente; los otros siete→Interno (DEC-054).
+			// Audiencia: cliente→Cliente; los otros ocho→Interno (DEC-054).
 			esperada := auth.AudienciaInterno
 			if rol == roles.RolCliente {
 				esperada = auth.AudienciaCliente

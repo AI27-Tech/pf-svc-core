@@ -24,6 +24,10 @@ type conversacionesFake struct {
 	convDeViaje msgclient.Id
 	errDeViaje  error
 	viajeVisto  msgclient.Id
+	// ídem para ObtenerConversacionDeSolicitud.
+	convDeSolicitud msgclient.Id
+	errDeSolicitud  error
+	solicitudVista  msgclient.Id
 }
 
 func (f *conversacionesFake) ObtenerConversacionDeViaje(_ context.Context, viajeID msgclient.Id) (*msgclient.Conversacion, error) {
@@ -183,5 +187,77 @@ func TestBFFMensajeriaConversacionDeViaje(t *testing.T) {
 				t.Fatalf("404: se llamó al método por id con %v", fake.idVisto)
 			}
 		})
+	}
+}
+
+func (f *conversacionesFake) ObtenerConversacionDeSolicitud(_ context.Context, solicitudID msgclient.Id) (*msgclient.Conversacion, error) {
+	f.solicitudVista = solicitudID
+	if f.errDeSolicitud != nil {
+		return nil, f.errDeSolicitud
+	}
+	return &msgclient.Conversacion{Id: f.convDeSolicitud}, nil
+}
+
+func (f *conversacionesFake) ListarTrabajoMiBandejaSolicitudes(context.Context, msgclient.ListarTrabajoMiBandejaSolicitudesParams) (*msgclient.TrabajoBandeja, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &msgclient.TrabajoBandeja{}, nil
+}
+
+// TestBFFMensajeriaConversacionDeSolicitud: el adaptador resuelve la conversación
+// por solicitud para cualquier audiencia y sigue por su id; el error de la
+// resolución se propaga sin cambio y no se llama al método por id.
+func TestBFFMensajeriaConversacionDeSolicitud(t *testing.T) {
+	sol, conv := msgclient.Id{0xa}, msgclient.Id{0xc}
+	metodos := []struct {
+		op     string
+		llamar func(*BFFMensajeriaEnProceso) error
+	}{
+		{"ObtenerConversacionSolicitud", func(ad *BFFMensajeriaEnProceso) error {
+			_, err := ad.ObtenerConversacionSolicitud(context.Background(), "", sol)
+			return err
+		}},
+		{"ListarMensajesSolicitud", func(ad *BFFMensajeriaEnProceso) error {
+			_, err := ad.ListarMensajesSolicitud(context.Background(), "", sol, msgclient.ListarMensajesParams{})
+			return err
+		}},
+		{"EnviarMensajeSolicitud", func(ad *BFFMensajeriaEnProceso) error {
+			_, err := ad.EnviarMensajeSolicitud(context.Background(), "", sol, msgclient.EnviarMensajeEntrada{Cuerpo: "hola"})
+			return err
+		}},
+	}
+	for _, m := range metodos {
+		t.Run(m.op, func(t *testing.T) {
+			fake := &conversacionesFake{convDeSolicitud: conv}
+			if err := m.llamar(NewBFFMensajeria(nil, fake)); err != nil {
+				t.Fatalf("no se esperaba error: %v", err)
+			}
+			if fake.solicitudVista != sol {
+				t.Fatalf("solicitud vista = %v; se esperaba %v", fake.solicitudVista, sol)
+			}
+			if m.op != "ObtenerConversacionSolicitud" && fake.idVisto != conv {
+				t.Fatalf("id por conversación = %v; se esperaba %v", fake.idVisto, conv)
+			}
+
+			noEncontrado := platformerrors.NewNoEncontrado("mensajeria: la solicitud no tiene conversación")
+			fake = &conversacionesFake{errDeSolicitud: noEncontrado}
+			if err := m.llamar(NewBFFMensajeria(nil, fake)); err != noEncontrado {
+				t.Fatalf("error = %v; se esperaba el NoEncontrado sin cambio", err)
+			}
+			if fake.idVisto != (msgclient.Id{}) {
+				t.Fatalf("se llamó al método por id con %v", fake.idVisto)
+			}
+		})
+	}
+}
+
+func TestBFFMensajeriaBandejaSolicitudes(t *testing.T) {
+	if _, err := NewBFFMensajeria(nil, &conversacionesFake{}).ListarTrabajoBandejaSolicitudes(context.Background(), "", msgclient.ListarTrabajoMiBandejaSolicitudesParams{}); err != nil {
+		t.Fatalf("no se esperaba error: %v", err)
+	}
+	conflicto := platformerrors.NewConflicto("x")
+	if _, err := NewBFFMensajeria(nil, &conversacionesFake{err: conflicto}).ListarTrabajoBandejaSolicitudes(context.Background(), "", msgclient.ListarTrabajoMiBandejaSolicitudesParams{}); err != conflicto {
+		t.Fatalf("error = %v; se esperaba el conflicto sin cambio", err)
 	}
 }

@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-11-24 15:57 — `core` cablea las solicitudes (ola 3, tracer.46; DEC-148, ADR 38 y 39)
+
+**Para quién:** quien despliega `core` y el portal del cliente y el panel, que ya pueden crear, cotizar, pagar y aprobar solicitudes de punta a punta. **Antes de desplegar:** exportar `DB_OP_SOLICITUDES_URL` (credencial del rol `op_solicitudes`; `core` no arranca sin ella) y correr `cmd/migrate`, que trae `solicitudes/0001-0007`, `viajes/0008`, `auditoria/0003` y `mensajeria/0013`. Sin el pool, operacion no monta rutas de solicitudes ni arranca el worker de vencimiento.
+
+**Cambios:**
+- `go.mod`: contratos `tracer.43` a `tracer.46`; `operacion` `v0.1.21` a `v0.1.22`, `identidad` `v0.1.9` a `v0.1.10`, `mensajeria` `v0.1.9` a `v0.1.10`, `bff` `v0.1.24` a `v0.1.25`, `reportes` `v0.1.6` a `v0.1.7`. Sin `replace`; `catalogos` queda en `v0.1.8`.
+- `cmd/core/main.go`: pool y rol `op_solicitudes` (`DB_OP_SOLICITUDES_URL`, `rolesDeBD`, struct de pools), pasado como `operacion.Pools.Solicitudes`.
+- `cmd/migrate/main.go`: `search_path` del rol `op_solicitudes` a `solicitudes`. El relay y el publicador de la plataforma usan `outbox` sin calificar y el outbox del módulo es `solicitudes.outbox`; `Aprobar` apunta a `viajes` solo dentro de su transacción.
+- `internal/adapters/bff_operacion.go`: los 12 métodos de solicitudes de `bff.OperacionPort`, reenvío puro a `operacion.ConsultasAPI`.
+- `internal/adapters/bff_mensajeria.go`: `ObtenerConversacionSolicitud`, `ListarMensajesSolicitud`, `EnviarMensajeSolicitud` (resuelven la conversación por solicitud y siguen por su id) y `ListarTrabajoBandejaSolicitudes`.
+- `internal/devauth`: el stub exige nueve roles (contratos `tracer.46` trae `cotizacion`); con ocho fallaba al construirse.
+- `internal/pgtest` (solo pruebas): base efímera por prueba; limpia el `search_path` de los roles del cluster, que sobrevive a las bases.
+- Pruebas: adaptadores (12 + 4 métodos), registro del bus (`solicitud.*`, `rol.*`, `sujeto.*`), durables de mensajeria en el cableado, `cmd/migrate` dos veces sobre base vacía con grants y `search_path`, y el humo de `cmd/core` (cliente crea, `cotizacion` cotiza y confirma pago, `jefe_operativo` aprueba; el viaje existe con el id de la solicitud en `APROBADO`, cada evento en su outbox y la conversación de la solicitud en mensajeria).
+- `README.md`: variable nueva y cómo correr las pruebas contra Postgres (`CORE_TEST_PG_ADMIN_URL`).
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`, `README.md`, `CHANGELOG.md`
+- `cmd/core/main.go`, `cmd/core/wiring_test.go`, `cmd/core/humo_integration_test.go`
+- `cmd/migrate/main.go`, `cmd/migrate/migrate_integration_test.go`
+- `internal/adapters/bff_operacion.go`, `internal/adapters/bff_operacion_test.go`, `internal/adapters/bff_mensajeria.go`, `internal/adapters/bff_mensajeria_test.go`
+- `internal/busregistry/busregistry_test.go`, `internal/devauth/devauth.go`, `internal/devauth/devauth_test.go`, `internal/pgtest/pgtest.go`
+
 ## 2026-11-19 — `obtenerMiAlcance` en `core`: pins y adaptador en proceso (tracer.43, DEC-149 #24)
 
 **Para quién:** quien despliega `core` y el panel, que ya puede leer su alcance con `GET /api/v1/sesion/alcance`.

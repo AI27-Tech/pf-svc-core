@@ -384,3 +384,151 @@ func (a *BFFOperacionEnProceso) GuardarFicha(ctx context.Context, id opclient.Id
 	}
 	return out, nil
 }
+
+// --- Solicitudes (V2, ADR 38 y 39, DEC-148) ----------------------------------
+// Reenvío puro a operacion.ConsultasAPI: la autorización por rol, la máquina de
+// estados y la regla comercial viven en operacion (DEC-148 #67), no aquí.
+
+// CrearSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) CrearSolicitud(ctx context.Context, body opclient.CrearSolicitudEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.CrearSolicitud(ctx, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "CrearSolicitud", err)
+	}
+	return out, nil
+}
+
+// ListarSolicitudes reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) ListarSolicitudes(ctx context.Context, params opclient.ListarSolicitudesParams) (*opclient.PaginaSolicitudes, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ListarSolicitudes(ctx, params)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ListarSolicitudes", err)
+	}
+	return out, nil
+}
+
+// ObtenerSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) ObtenerSolicitud(ctx context.Context, id opclient.Id) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ObtenerSolicitud(ctx, id)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ObtenerSolicitud", err)
+	}
+	return out, nil
+}
+
+// ListarHistoricoSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) ListarHistoricoSolicitud(ctx context.Context, id opclient.Id) (*opclient.HistoricoSolicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ListarHistoricoSolicitud(ctx, id)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ListarHistoricoSolicitud", err)
+	}
+	return out, nil
+}
+
+// CotizarSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) CotizarSolicitud(ctx context.Context, id opclient.Id, body opclient.CotizacionEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.CotizarSolicitud(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "CotizarSolicitud", err)
+	}
+	return out, nil
+}
+
+// ReprogramarSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) ReprogramarSolicitud(ctx context.Context, id opclient.Id, body opclient.ReprogramacionEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ReprogramarSolicitud(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ReprogramarSolicitud", err)
+	}
+	return out, nil
+}
+
+// RechazarCotizacion reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) RechazarCotizacion(ctx context.Context, id opclient.Id, body opclient.AccionClienteEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.RechazarCotizacion(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "RechazarCotizacion", err)
+	}
+	return out, nil
+}
+
+// CancelarSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) CancelarSolicitud(ctx context.Context, id opclient.Id, body opclient.AccionClienteEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.CancelarSolicitud(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "CancelarSolicitud", err)
+	}
+	return out, nil
+}
+
+// ConfirmarPago reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) ConfirmarPago(ctx context.Context, id opclient.Id, body opclient.PagoEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.ConfirmarPago(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "ConfirmarPago", err)
+	}
+	return out, nil
+}
+
+// RevertirPago reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) RevertirPago(ctx context.Context, id opclient.Id, body opclient.MotivoEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.RevertirPago(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "RevertirPago", err)
+	}
+	return out, nil
+}
+
+// AprobarSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) AprobarSolicitud(ctx context.Context, id opclient.Id) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.AprobarSolicitud(ctx, id)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "AprobarSolicitud", err)
+	}
+	return out, nil
+}
+
+// RechazarSolicitud reenvía la operación del mismo nombre del contrato.
+func (a *BFFOperacionEnProceso) RechazarSolicitud(ctx context.Context, id opclient.Id, body opclient.MotivoEntrada) (*opclient.Solicitud, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoOperacion)
+	defer cancel()
+
+	out, err := a.consultas.RechazarSolicitud(ctx, id, body)
+	if err != nil {
+		return nil, traducirErrorOperacion(ctx, "RechazarSolicitud", err)
+	}
+	return out, nil
+}

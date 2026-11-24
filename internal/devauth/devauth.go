@@ -56,19 +56,19 @@ type Stub struct {
 
 var _ auth.Authenticator = (*Stub)(nil)
 
-// Nuevo construye el stub con usuarios fake de cada uno de los ocho roles de
-// DEC-045 (identificadores de DEC-053) en al menos dos tenants distintos, para
-// que las pruebas de aislamiento de tenant tengan algo que distinguir. Devuelve
-// error si el entorno es producción o si el enum del contrato no trae los ocho
+// Nuevo construye el stub con usuarios fake de cada uno de los nueve roles (los
+// ocho de DEC-045, identificadores de DEC-053, y `cotizacion` de DEC-148) en al
+// menos dos tenants distintos, para que las pruebas de aislamiento de tenant tengan algo que distinguir. Devuelve
+// error si el entorno es producción o si el enum del contrato no trae los nueve
 // roles (brecha contractual; no se completa a mano).
 func Nuevo(entorno Entorno) (*Stub, error) {
 	if entorno == EntornoProduccion {
 		return nil, fmt.Errorf("devauth: el stub de desarrollo no debe arrancar en producción")
 	}
 
-	// Los ocho roles deben venir del contrato. Si faltan, es brecha contractual.
-	if len(roles.Todos) != 8 {
-		return nil, fmt.Errorf("devauth: el enum Rol del contrato tiene %d valores; se esperaban los 8 de DEC-053 (brecha contractual, no se completa a mano)", len(roles.Todos))
+	// Los nueve roles deben venir del contrato. Si faltan, es brecha contractual.
+	if len(roles.Todos) != 9 {
+		return nil, fmt.Errorf("devauth: el enum Rol del contrato tiene %d valores; se esperaban los 9 de DEC-053 y DEC-148 (brecha contractual, no se completa a mano)", len(roles.Todos))
 	}
 
 	tenants := []string{"tenant-dev-alfa", "tenant-dev-beta"}

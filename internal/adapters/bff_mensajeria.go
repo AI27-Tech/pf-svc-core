@@ -269,3 +269,63 @@ func traducirErrorMensajeria(ctx context.Context, op string, err error) error {
 	}
 	return err
 }
+
+// --- Conversación de la solicitud (V2, DEC-148) ------------------------------
+
+// ObtenerConversacionSolicitud reenvía la lectura de la conversación de la
+// solicitud. mensajeria autoriza por rol/audiencia (DEC-148 #67 para
+// jefe_operativo); aquí no hay lógica de negocio.
+func (a *BFFMensajeriaEnProceso) ObtenerConversacionSolicitud(ctx context.Context, _ string, solicitudID msgclient.Id) (*msgclient.Conversacion, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.ObtenerConversacionDeSolicitud(ctx, solicitudID)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ObtenerConversacionSolicitud", err)
+	}
+	return out, nil
+}
+
+// ListarMensajesSolicitud resuelve la conversación de la solicitud y lista sus
+// mensajes por id de conversación (las operaciones por id sirven a los dos tipos,
+// COSTURAS §3).
+func (a *BFFMensajeriaEnProceso) ListarMensajesSolicitud(ctx context.Context, _ string, solicitudID msgclient.Id, params msgclient.ListarMensajesParams) (*msgclient.PaginaMensajes, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	conv, err := a.conv.ObtenerConversacionDeSolicitud(ctx, solicitudID)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ListarMensajesSolicitud", err)
+	}
+	out, err := a.conv.ListarMensajes(ctx, conv.Id, params)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ListarMensajesSolicitud", err)
+	}
+	return out, nil
+}
+
+// EnviarMensajeSolicitud resuelve la conversación de la solicitud y envía el
+// mensaje por id de conversación.
+func (a *BFFMensajeriaEnProceso) EnviarMensajeSolicitud(ctx context.Context, _ string, solicitudID msgclient.Id, body msgclient.EnviarMensajeEntrada) (*msgclient.Mensaje, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	conv, err := a.conv.ObtenerConversacionDeSolicitud(ctx, solicitudID)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "EnviarMensajeSolicitud", err)
+	}
+	out, err := a.conv.EnviarMensaje(ctx, conv.Id, body)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "EnviarMensajeSolicitud", err)
+	}
+	return out, nil
+}
+
+// ListarTrabajoBandejaSolicitudes reenvía la bandeja de solicitudes del pool de
+// cotización.
+func (a *BFFMensajeriaEnProceso) ListarTrabajoBandejaSolicitudes(ctx context.Context, _ string, params msgclient.ListarTrabajoMiBandejaSolicitudesParams) (*msgclient.TrabajoBandeja, error) {
+	ctx, cancel := context.WithTimeout(ctx, bff.PresupuestoMensajeria)
+	defer cancel()
+	out, err := a.conv.ListarTrabajoMiBandejaSolicitudes(ctx, params)
+	if err != nil {
+		return nil, traducirErrorMensajeria(ctx, "ListarTrabajoBandejaSolicitudes", err)
+	}
+	return out, nil
+}

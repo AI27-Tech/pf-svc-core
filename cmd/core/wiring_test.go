@@ -161,6 +161,24 @@ func TestCatalogosAportaRelay(t *testing.T) {
 	}
 }
 
+// TestMensajeriaConsumeSolicitudesYRoles (DEC-148 #5, #30, #31): con Subscriber,
+// mensajeria abre los durables de la solicitud (solicitud.creada y
+// solicitud.estado_cambiado) y de rol vigente (rol.asignado, rol.revocado,
+// sujeto.*); sin Subscriber no abre ninguno. Sin el segundo, toda transferencia
+// de una solicitud responde 409.
+func TestMensajeriaConsumeSolicitudesYRoles(t *testing.T) {
+	con := nombresDeWorkers(t, busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{}), true)
+	sin := nombresDeWorkers(t, busmem.Nuevo(busregistry.Nuevo(), busmem.Opciones{}), false)
+	for _, d := range []string{"mensajeria-conversacion-solicitud", "mensajeria-roles"} {
+		if !contieneSubcadena(con, d) {
+			t.Errorf("falta el durable %q entre %v", d, con)
+		}
+		if contieneSubcadena(sin, d) {
+			t.Errorf("sin Subscriber no debía haber %q; sin=%v", d, sin)
+		}
+	}
+}
+
 func contieneSubcadena(xs []string, sub string) bool {
 	for _, x := range xs {
 		if strings.Contains(x, sub) {

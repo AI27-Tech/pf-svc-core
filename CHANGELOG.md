@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## 2026-11-24 17:00 — Seguimiento de la revisión del PR #90 (`core` ola 3)
+
+**Para quién:** quien corre las pruebas de `core` y quien mantiene su CI.
+
+**Cambios:**
+- `internal/pgtest`: guarda de cluster dedicado a pruebas. `Nueva` resetea la configuración de todos los roles `op_*`/`svc_*` del cluster; ahora falla (no salta) si `CORE_TEST_PG_DESECHABLE` no es `1` o si el cluster tiene bases fuera de `postgres`, `template0`, `template1` y `core_it_*`. Con `pgtest_test.go` (la base ajena la ve la guarda; sin la variable falla).
+- `README.md`: cómo correr las pruebas de integración con un Postgres efímero.
+- `.github/workflows/ci.yml`: el job `build-test` tiene un servicio Postgres 17 (`trust`, superusuario `postgres` sin contraseña) con `CORE_TEST_PG_ADMIN_URL` y `CORE_TEST_PG_DESECHABLE=1`, y un NATS JetStream (`docker run`). Una verificación explícita falla el job si Postgres o NATS no responden. Ahora corren en CI `cmd/migrate`, el humo de `cmd/core` (con `-tags devauth`, con `-p 1`) y `bus_test.go` (`-tags nats`); el paso falla si hay pruebas `SKIP` o si el humo o `migrate` no pasan. Antes se saltaban en silencio.
+- Pruebas de los adaptadores de solicitudes: los fakes de `bff_operacion_test.go` y `bff_mensajeria_test.go` registran id, cuerpo y parámetros, y cada prueba comprueba que llegan intactos a operacion y mensajeria (16 adaptadores nuevos, valores distintos por campo). Antes sobrevivían cinco mutaciones (cuerpo de `RechazarSolicitud`, id de `ObtenerSolicitud`, parámetros de `ListarSolicitudes`, cuerpo y parámetros de `EnviarMensajeSolicitud` y `ListarMensajesSolicitud`); ahora mueren las 27 mutaciones de id, cuerpo y parámetros que se probaron. `go.mod`: `oapi-codegen/runtime` pasa a dependencia directa (`go mod tidy`), porque la prueba usa `openapi_types.Date`.
+- `internal/devauth`: el tenant de los claims es un UUID estable por alias (`tenant-dev-alfa` = `00000000-0000-4000-8000-0000000000a1`, `tenant-dev-beta` = `...0b1`) y el sujeto es un UUID derivado y estable por token (DEC-112, DEC-049: operacion respondía 403 con tenant no UUID y mensajeria 401 con sujeto no UUID). El token de desarrollo sigue siendo `<rol>@tenant-dev-alfa`. El humo ya no sustituye tenant ni sujeto: corre con el `devauth` real. Ninguna otra prueba dependía de los valores viejos (`identidad_tokens` usa sus propios claims).
+- Textos: el comentario de `envDBOpSolicitudes`, el `README.md` y la entrada de la ola decían que sin el pool operacion no monta rutas de solicitudes; en realidad `core` no arranca sin `DB_OP_SOLICITUDES_URL`. `cmd/migrate/migrate_integration_test.go` prometía mensajeria `0011-0013` y solo comprobaba una tabla: ahora comprueba también `mensajeria.rol_sujeto.idp_subject`, `solicitudes.reprogramacion_solicitud` y el `INSERT` de `op_solicitudes` en `auditoria.registro_auditoria`.
+- DT-26 (aclaración a "DT-26 sin tocar" del PR #90): `core` corre además en proceso los durables `mensajeria-conversacion-solicitud` y `mensajeria-roles`, y cuatro métodos más del adaptador de mensajeria. Pendiente en el workspace: DT-26 ya lo registra (no se edita desde este repo).
+- Humo: con la solicitud en `PAGADO`, `cotizacion` ve la cotización y el pago y `jefe_operativo` recibe `cotizacion: null` y `pago: null` (la clave va, no se omite) sin el monto ni la referencia. Fija el comportamiento actual del contrato (DEC-148 #67 y #73), que no se cambia aquí.
+
+## 2026-11-24 15:57 — `core` cablea las solicitudes (ola 3, tracer.46; DEC-148, ADR 38 y 39)
+
+**Para quién:** quien despliega `core` y el portal del cliente y el panel, que ya pueden crear, cotizar, pagar y aprobar solicitudes de punta a punta. **Antes de desplegar:** exportar `DB_OP_SOLICITUDES_URL` (credencial del rol `op_solicitudes`) y correr `cmd/migrate`, que trae `solicitudes/0001-0007`, `viajes/0008`, `auditoria/0003` y `mensajeria/0013`. La variable es obligatoria: sin ella `core` termina de inmediato con `faltan variables de entorno requeridas: DB_OP_SOLICITUDES_URL`.
+
+**Cambios:**
+- `go.mod`: contratos `tracer.43` a `tracer.46`; `operacion` `v0.1.21` a `v0.1.22`, `identidad` `v0.1.9` a `v0.1.10`, `mensajeria` `v0.1.9` a `v0.1.10`, `bff` `v0.1.24` a `v0.1.25`, `reportes` `v0.1.6` a `v0.1.7`. Sin `replace`; `catalogos` queda en `v0.1.8`.
+- `cmd/core/main.go`: pool y rol `op_solicitudes` (`DB_OP_SOLICITUDES_URL`, `rolesDeBD`, struct de pools), pasado como `operacion.Pools.Solicitudes`.
+- `cmd/migrate/main.go`: `search_path` del rol `op_solicitudes` a `solicitudes`. El relay y el publicador de la plataforma usan `outbox` sin calificar y el outbox del módulo es `solicitudes.outbox`; `Aprobar` apunta a `viajes` solo dentro de su transacción.
+- `internal/adapters/bff_operacion.go`: los 12 métodos de solicitudes de `bff.OperacionPort`, reenvío puro a `operacion.ConsultasAPI`.
+- `internal/adapters/bff_mensajeria.go`: `ObtenerConversacionSolicitud`, `ListarMensajesSolicitud`, `EnviarMensajeSolicitud` (resuelven la conversación por solicitud y siguen por su id) y `ListarTrabajoBandejaSolicitudes`.
+- `internal/devauth`: el stub exige nueve roles (contratos `tracer.46` trae `cotizacion`); con ocho fallaba al construirse.
+- `internal/pgtest` (solo pruebas): base efímera por prueba; limpia el `search_path` de los roles del cluster, que sobrevive a las bases.
+- Pruebas: adaptadores (12 + 4 métodos), registro del bus (`solicitud.*`, `rol.*`, `sujeto.*`), durables de mensajeria en el cableado, `cmd/migrate` dos veces sobre base vacía con grants y `search_path`, y el humo de `cmd/core` (cliente crea, `cotizacion` cotiza y confirma pago, `jefe_operativo` aprueba; el viaje existe con el id de la solicitud en `APROBADO`, cada evento en su outbox y la conversación de la solicitud en mensajeria).
+- `README.md`: variable nueva y cómo correr las pruebas contra Postgres (`CORE_TEST_PG_ADMIN_URL`).
+
+**Archivos modificados:**
+- `go.mod`, `go.sum`, `README.md`, `CHANGELOG.md`
+- `cmd/core/main.go`, `cmd/core/wiring_test.go`, `cmd/core/humo_integration_test.go`
+- `cmd/migrate/main.go`, `cmd/migrate/migrate_integration_test.go`
+- `internal/adapters/bff_operacion.go`, `internal/adapters/bff_operacion_test.go`, `internal/adapters/bff_mensajeria.go`, `internal/adapters/bff_mensajeria_test.go`
+- `internal/busregistry/busregistry_test.go`, `internal/devauth/devauth.go`, `internal/devauth/devauth_test.go`, `internal/pgtest/pgtest.go`
+
 ## 2026-11-19 — `obtenerMiAlcance` en `core`: pins y adaptador en proceso (tracer.43, DEC-149 #24)
 
 **Para quién:** quien despliega `core` y el panel, que ya puede leer su alcance con `GET /api/v1/sesion/alcance`.

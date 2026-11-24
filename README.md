@@ -188,12 +188,29 @@ resuelve en servidor (DEC-053).
 
 `cmd/migrate` (dos corridas sobre una base vacía, grants y `search_path` de
 `op_solicitudes`) y el humo de `cmd/core` (solicitud → cotización → pago →
-aprobación → viaje y conversación; solo con `-tags devauth`) se saltan si no hay
-cluster. Para correrlas, apunta `CORE_TEST_PG_ADMIN_URL` a un Postgres desechable
-con auth `trust` (los roles de app se crean sin contraseña y se conectan con la
-misma URL cambiando el usuario):
+aprobación → viaje y conversación; solo con `-tags devauth`) corren contra un
+Postgres real. Sin `CORE_TEST_PG_ADMIN_URL` se saltan; el CI del repo las corre
+con un servicio Postgres y falla si no responde.
+
+`internal/pgtest` resetea la configuración (`ALTER ROLE ... RESET ALL`) de **todo**
+rol `op_*` y `svc_*` **del cluster**, no de la base. Por eso se niega a correr
+(`t.Fatalf`, no salta) si:
+
+1. `CORE_TEST_PG_DESECHABLE` no es `1`: el autor declara que el cluster es solo de pruebas.
+2. El cluster tiene alguna base fuera de `postgres`, `template0`, `template1` y las
+   `core_it_*` que crea el propio pgtest (señal de un Postgres de desarrollo).
+
+Nunca lo apuntes al Postgres del stack local. Levanta uno efímero con auth `trust`
+(los roles de app se crean sin contraseña y se conectan con la misma URL cambiando
+el usuario) y corre las pruebas con `-p 1` (dos paquetes en paralelo se pisarían
+la configuración de roles):
 
 ```bash
-CORE_TEST_PG_ADMIN_URL='postgres://postgres@/postgres?host=/tmp&port=54329' \
-  go test -count=1 -p 1 -tags devauth ./cmd/...
+initdb -D /tmp/pgcore.dir -U postgres --auth=trust
+mkdir -p /tmp/pgcore.sock
+pg_ctl -D /tmp/pgcore.dir -o "-p 54329 -k /tmp/pgcore.sock -c listen_addresses=''" -l /tmp/pgcore.log start
+
+CORE_TEST_PG_ADMIN_URL='postgres://postgres@/postgres?host=/tmp/pgcore.sock&port=54329' \
+CORE_TEST_PG_DESECHABLE=1 \
+  go test -count=1 -p 1 -tags devauth ./...
 ```

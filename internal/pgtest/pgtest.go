@@ -1,6 +1,7 @@
 // Package pgtest crea bases de datos efímeras para las pruebas de integración de
 // core. Solo lo importan archivos _test.go. Sin CORE_TEST_PG_ADMIN_URL las
-// pruebas se saltan (CI sin Postgres), igual que las de los servicios.
+// pruebas se saltan; el CI del repo lo define. Con la URL pero sin la declaración
+// de cluster desechable (EnvDesechable) o con bases ajenas en el cluster, falla.
 package pgtest
 
 import (
@@ -19,6 +20,43 @@ import (
 // confiar en ellos (auth trust) porque sus roles se crean sin contraseña.
 const EnvAdmin = "CORE_TEST_PG_ADMIN_URL"
 
+// EnvDesechable (=1) declara que el cluster de EnvAdmin es solo para pruebas.
+// Nueva resetea la configuración de los roles op_*/svc_* de TODO el cluster, así
+// que sin esta declaración se niega a tocar nada.
+const EnvDesechable = "CORE_TEST_PG_DESECHABLE"
+
+// prefijoBase es el de las bases efímeras que crea Nueva; son las únicas, además
+// de las del sistema, que puede haber en un cluster desechable.
+const prefijoBase = "core_it_"
+
+// exigirDesechable falla si el autor de la prueba no declaró el cluster desechable.
+func exigirDesechable(env func(string) string) error {
+	if env(EnvDesechable) != "1" {
+		return fmt.Errorf("%s no es 1: Nueva resetea la configuración de los roles op_*/svc_* de todo el cluster; "+
+			"solo se corre contra un Postgres dedicado a pruebas (ver README)", EnvDesechable)
+	}
+	return nil
+}
+
+// revisarBases falla si el cluster tiene alguna base que no sea del sistema ni
+// de pgtest: señal de un Postgres de desarrollo cuyos roles no se deben resetear.
+func revisarBases(ctx context.Context, conn *pgx.Conn) error {
+	filas, err := conn.Query(ctx, `SELECT datname FROM pg_database
+		WHERE datname NOT IN ('postgres','template0','template1') AND datname NOT LIKE $1`, prefijoBase+"%")
+	if err != nil {
+		return fmt.Errorf("consultar pg_database: %w", err)
+	}
+	ajenas, err := pgx.CollectRows(filas, pgx.RowTo[string])
+	if err != nil {
+		return fmt.Errorf("leer pg_database: %w", err)
+	}
+	if len(ajenas) > 0 {
+		return fmt.Errorf("el cluster no es dedicado a pruebas: tiene bases ajenas %v; "+
+			"apunta %s a un Postgres desechable", ajenas, EnvAdmin)
+	}
+	return nil
+}
+
 // Base es una base efímera con su credencial administrativa.
 type Base struct {
 	Nombre   string
@@ -33,6 +71,9 @@ func Nueva(t *testing.T, env func(string) string) *Base {
 	if raw == "" {
 		t.Skipf("%s no definido: prueba de integración contra Postgres omitida", EnvAdmin)
 	}
+	if err := exigirDesechable(env); err != nil {
+		t.Fatalf("pgtest: %v", err)
+	}
 	u, err := url.Parse(raw)
 	if err != nil {
 		t.Fatalf("pgtest: %s inválida: %v", EnvAdmin, err)
@@ -45,6 +86,10 @@ func Nueva(t *testing.T, env func(string) string) *Base {
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
+	if err := revisarBases(ctx, conn); err != nil {
+		t.Fatalf("pgtest: %v", err)
+	}
+
 	// Los roles son del cluster, no de la base: su search_path sobrevive a las bases
 	// borradas. Se limpia el de corridas previas para que la prueba demuestre lo
 	// que fija cmd/migrate y no lo que quedó de otra corrida.
@@ -55,7 +100,7 @@ func Nueva(t *testing.T, env func(string) string) *Base {
 		t.Fatalf("pgtest: limpiar la configuración de roles: %v", err)
 	}
 
-	nombre := fmt.Sprintf("core_it_%d", time.Now().UnixNano())
+	nombre := fmt.Sprintf("%s%d", prefijoBase, time.Now().UnixNano())
 	if _, err := conn.Exec(ctx, "CREATE DATABASE "+nombre); err != nil {
 		t.Fatalf("pgtest: crear base: %v", err)
 	}

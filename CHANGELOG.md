@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-11-24 17:00 — Seguimiento de la revisión del PR #90 (`core` ola 3)
+
+**Para quién:** quien corre las pruebas de `core` y quien mantiene su CI.
+
+**Cambios:**
+- `internal/pgtest`: guarda de cluster dedicado a pruebas. `Nueva` resetea la configuración de todos los roles `op_*`/`svc_*` del cluster; ahora falla (no salta) si `CORE_TEST_PG_DESECHABLE` no es `1` o si el cluster tiene bases fuera de `postgres`, `template0`, `template1` y `core_it_*`. Con `pgtest_test.go` (la base ajena la ve la guarda; sin la variable falla).
+- `README.md`: cómo correr las pruebas de integración con un Postgres efímero.
+
 ## 2026-11-24 15:57 — `core` cablea las solicitudes (ola 3, tracer.46; DEC-148, ADR 38 y 39)
 
 **Para quién:** quien despliega `core` y el portal del cliente y el panel, que ya pueden crear, cotizar, pagar y aprobar solicitudes de punta a punta. **Antes de desplegar:** exportar `DB_OP_SOLICITUDES_URL` (credencial del rol `op_solicitudes`; `core` no arranca sin ella) y correr `cmd/migrate`, que trae `solicitudes/0001-0007`, `viajes/0008`, `auditoria/0003` y `mensajeria/0013`. Sin el pool, operacion no monta rutas de solicitudes ni arranca el worker de vencimiento.

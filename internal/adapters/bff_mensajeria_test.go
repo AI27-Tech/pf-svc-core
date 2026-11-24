@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	msgclient "github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go/mensajeria"
@@ -28,6 +29,11 @@ type conversacionesFake struct {
 	convDeSolicitud msgclient.Id
 	errDeSolicitud  error
 	solicitudVista  msgclient.Id
+	// Argumentos que llegaron a ListarMensajes, EnviarMensaje y la bandeja de
+	// solicitudes, para comprobar que el adaptador no los descarta.
+	paramsMensajesVistos msgclient.ListarMensajesParams
+	cuerpoEnvioVisto     msgclient.EnviarMensajeEntrada
+	paramsBandejaVistos  msgclient.ListarTrabajoMiBandejaSolicitudesParams
 }
 
 func (f *conversacionesFake) ObtenerConversacionDeViaje(_ context.Context, viajeID msgclient.Id) (*msgclient.Conversacion, error) {
@@ -43,13 +49,15 @@ func (f *conversacionesFake) ObtenerConversacion(_ context.Context, id msgclient
 	return &msgclient.Conversacion{Id: id}, f.err
 }
 
-func (f *conversacionesFake) ListarMensajes(_ context.Context, id msgclient.Id, _ msgclient.ListarMensajesParams) (*msgclient.PaginaMensajes, error) {
+func (f *conversacionesFake) ListarMensajes(_ context.Context, id msgclient.Id, params msgclient.ListarMensajesParams) (*msgclient.PaginaMensajes, error) {
 	f.idVisto = id
+	f.paramsMensajesVistos = params
 	return &msgclient.PaginaMensajes{}, f.err
 }
 
 func (f *conversacionesFake) EnviarMensaje(_ context.Context, id msgclient.Id, body msgclient.EnviarMensajeEntrada) (*msgclient.Mensaje, error) {
 	f.idVisto = id
+	f.cuerpoEnvioVisto = body
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -198,7 +206,8 @@ func (f *conversacionesFake) ObtenerConversacionDeSolicitud(_ context.Context, s
 	return &msgclient.Conversacion{Id: f.convDeSolicitud}, nil
 }
 
-func (f *conversacionesFake) ListarTrabajoMiBandejaSolicitudes(context.Context, msgclient.ListarTrabajoMiBandejaSolicitudesParams) (*msgclient.TrabajoBandeja, error) {
+func (f *conversacionesFake) ListarTrabajoMiBandejaSolicitudes(_ context.Context, params msgclient.ListarTrabajoMiBandejaSolicitudesParams) (*msgclient.TrabajoBandeja, error) {
+	f.paramsBandejaVistos = params
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -206,25 +215,49 @@ func (f *conversacionesFake) ListarTrabajoMiBandejaSolicitudes(context.Context, 
 }
 
 // TestBFFMensajeriaConversacionDeSolicitud: el adaptador resuelve la conversación
-// por solicitud para cualquier audiencia y sigue por su id; el error de la
-// resolución se propaga sin cambio y no se llama al método por id.
+// por solicitud para cualquier audiencia y sigue por su id, con el cuerpo y los
+// parámetros intactos; el error de la resolución se propaga sin cambio y no se
+// llama al método por id.
 func TestBFFMensajeriaConversacionDeSolicitud(t *testing.T) {
 	sol, conv := msgclient.Id{0xa}, msgclient.Id{0xc}
+	antesDe, despuesDe, limite := msgclient.SecuenciaMensaje(901), msgclient.SecuenciaMensaje(37), 13
+	params := msgclient.ListarMensajesParams{AntesDe: &antesDe, DespuesDe: &despuesDe, Limite: &limite}
+	reclamo := msgclient.VersionReclamo(5)
+	override := "motivo de override"
+	adjunto := msgclient.Id{0xd}
+	adjuntos := []msgclient.Id{adjunto}
+	envio := msgclient.EnviarMensajeEntrada{
+		ClientMessageId:        msgclient.Id{0xe},
+		Cuerpo:                 "cuerpo del mensaje de prueba",
+		AdjuntosIds:            &adjuntos,
+		MotivoOverride:         &override,
+		VersionReclamoEsperada: &reclamo,
+	}
 	metodos := []struct {
 		op     string
 		llamar func(*BFFMensajeriaEnProceso) error
+		// verificar comprueba lo que llegó a mensajeria además del id.
+		verificar func(*testing.T, *conversacionesFake)
 	}{
 		{"ObtenerConversacionSolicitud", func(ad *BFFMensajeriaEnProceso) error {
 			_, err := ad.ObtenerConversacionSolicitud(context.Background(), "", sol)
 			return err
-		}},
+		}, func(*testing.T, *conversacionesFake) {}},
 		{"ListarMensajesSolicitud", func(ad *BFFMensajeriaEnProceso) error {
-			_, err := ad.ListarMensajesSolicitud(context.Background(), "", sol, msgclient.ListarMensajesParams{})
+			_, err := ad.ListarMensajesSolicitud(context.Background(), "", sol, params)
 			return err
+		}, func(t *testing.T, f *conversacionesFake) {
+			if !reflect.DeepEqual(f.paramsMensajesVistos, params) {
+				t.Fatalf("parámetros que llegaron = %#v; se esperaba %#v", f.paramsMensajesVistos, params)
+			}
 		}},
 		{"EnviarMensajeSolicitud", func(ad *BFFMensajeriaEnProceso) error {
-			_, err := ad.EnviarMensajeSolicitud(context.Background(), "", sol, msgclient.EnviarMensajeEntrada{Cuerpo: "hola"})
+			_, err := ad.EnviarMensajeSolicitud(context.Background(), "", sol, envio)
 			return err
+		}, func(t *testing.T, f *conversacionesFake) {
+			if !reflect.DeepEqual(f.cuerpoEnvioVisto, envio) {
+				t.Fatalf("cuerpo que llegó = %#v; se esperaba %#v", f.cuerpoEnvioVisto, envio)
+			}
 		}},
 	}
 	for _, m := range metodos {
@@ -239,6 +272,7 @@ func TestBFFMensajeriaConversacionDeSolicitud(t *testing.T) {
 			if m.op != "ObtenerConversacionSolicitud" && fake.idVisto != conv {
 				t.Fatalf("id por conversación = %v; se esperaba %v", fake.idVisto, conv)
 			}
+			m.verificar(t, fake)
 
 			noEncontrado := platformerrors.NewNoEncontrado("mensajeria: la solicitud no tiene conversación")
 			fake = &conversacionesFake{errDeSolicitud: noEncontrado}
@@ -253,11 +287,17 @@ func TestBFFMensajeriaConversacionDeSolicitud(t *testing.T) {
 }
 
 func TestBFFMensajeriaBandejaSolicitudes(t *testing.T) {
-	if _, err := NewBFFMensajeria(nil, &conversacionesFake{}).ListarTrabajoBandejaSolicitudes(context.Background(), "", msgclient.ListarTrabajoMiBandejaSolicitudesParams{}); err != nil {
+	cursor, revision := msgclient.CursorPagina("cursor-bandeja-31"), msgclient.RevisionBandeja(4821)
+	params := msgclient.ListarTrabajoMiBandejaSolicitudesParams{Cursor: &cursor, DesdeRevision: &revision}
+	fake := &conversacionesFake{}
+	if _, err := NewBFFMensajeria(nil, fake).ListarTrabajoBandejaSolicitudes(context.Background(), "", params); err != nil {
 		t.Fatalf("no se esperaba error: %v", err)
 	}
+	if !reflect.DeepEqual(fake.paramsBandejaVistos, params) {
+		t.Fatalf("parámetros que llegaron = %#v; se esperaba %#v", fake.paramsBandejaVistos, params)
+	}
 	conflicto := platformerrors.NewConflicto("x")
-	if _, err := NewBFFMensajeria(nil, &conversacionesFake{err: conflicto}).ListarTrabajoBandejaSolicitudes(context.Background(), "", msgclient.ListarTrabajoMiBandejaSolicitudesParams{}); err != conflicto {
+	if _, err := NewBFFMensajeria(nil, &conversacionesFake{err: conflicto}).ListarTrabajoBandejaSolicitudes(context.Background(), "", params); err != conflicto {
 		t.Fatalf("error = %v; se esperaba el conflicto sin cambio", err)
 	}
 }

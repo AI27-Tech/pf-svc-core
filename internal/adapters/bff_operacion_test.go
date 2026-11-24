@@ -3,10 +3,12 @@ package adapters
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	opclient "github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go/operacion"
 	platformerrors "github.com/AI27-Tech/pf-pkg-platform-go/errors"
@@ -23,6 +25,9 @@ type operacionFake struct {
 	ctxVisto context.Context
 	// modVisto captura el cuerpo que llega a ModificarUnidad.
 	modVisto opclient.UnidadModificacion
+	// vistos registra los argumentos (id, cuerpo, parámetros) con que cada método
+	// de solicitudes llegó a operacion, en el orden de la firma.
+	vistos []any
 }
 
 var _ operacion.ConsultasAPI = (*operacionFake)(nil)
@@ -459,151 +464,174 @@ func TestBFFOperacionModificarUnidadClienteId(t *testing.T) {
 }
 
 // --- Solicitudes: fakes de operacion.ConsultasAPI ---------------------------
+// Cada fake registra sus argumentos en f.vistos para que la prueba compruebe que
+// id, cuerpo y parámetros llegan intactos.
 
-func (f *operacionFake) CrearSolicitud(ctx context.Context, _ opclient.CrearSolicitudEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) CrearSolicitud(ctx context.Context, body opclient.CrearSolicitudEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) ListarSolicitudes(ctx context.Context, _ opclient.ListarSolicitudesParams) (*opclient.PaginaSolicitudes, error) {
+func (f *operacionFake) ListarSolicitudes(ctx context.Context, params opclient.ListarSolicitudesParams) (*opclient.PaginaSolicitudes, error) {
+	f.vistos = append(f.vistos, params)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.PaginaSolicitudes{}, nil
 }
 
-func (f *operacionFake) ObtenerSolicitud(ctx context.Context, _ opclient.Id) (*opclient.Solicitud, error) {
+func (f *operacionFake) ObtenerSolicitud(ctx context.Context, id opclient.Id) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) ListarHistoricoSolicitud(ctx context.Context, _ opclient.Id) (*opclient.HistoricoSolicitud, error) {
+func (f *operacionFake) ListarHistoricoSolicitud(ctx context.Context, id opclient.Id) (*opclient.HistoricoSolicitud, error) {
+	f.vistos = append(f.vistos, id)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.HistoricoSolicitud{}, nil
 }
 
-func (f *operacionFake) CotizarSolicitud(ctx context.Context, _ opclient.Id, _ opclient.CotizacionEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) CotizarSolicitud(ctx context.Context, id opclient.Id, body opclient.CotizacionEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) ReprogramarSolicitud(ctx context.Context, _ opclient.Id, _ opclient.ReprogramacionEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) ReprogramarSolicitud(ctx context.Context, id opclient.Id, body opclient.ReprogramacionEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) RechazarCotizacion(ctx context.Context, _ opclient.Id, _ opclient.AccionClienteEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) RechazarCotizacion(ctx context.Context, id opclient.Id, body opclient.AccionClienteEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) CancelarSolicitud(ctx context.Context, _ opclient.Id, _ opclient.AccionClienteEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) CancelarSolicitud(ctx context.Context, id opclient.Id, body opclient.AccionClienteEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) ConfirmarPago(ctx context.Context, _ opclient.Id, _ opclient.PagoEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) ConfirmarPago(ctx context.Context, id opclient.Id, body opclient.PagoEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) RevertirPago(ctx context.Context, _ opclient.Id, _ opclient.MotivoEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) RevertirPago(ctx context.Context, id opclient.Id, body opclient.MotivoEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) AprobarSolicitud(ctx context.Context, _ opclient.Id) (*opclient.Solicitud, error) {
+func (f *operacionFake) AprobarSolicitud(ctx context.Context, id opclient.Id) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-func (f *operacionFake) RechazarSolicitud(ctx context.Context, _ opclient.Id, _ opclient.MotivoEntrada) (*opclient.Solicitud, error) {
+func (f *operacionFake) RechazarSolicitud(ctx context.Context, id opclient.Id, body opclient.MotivoEntrada) (*opclient.Solicitud, error) {
+	f.vistos = append(f.vistos, id, body)
 	if err := f.esperar(ctx); err != nil {
 		return nil, err
 	}
 	return &opclient.Solicitud{}, nil
 }
 
-// TestBFFOperacionSolicitudes: los 12 métodos de solicitudes llegan a operacion,
-// con el presupuesto de bff, y el error de plataforma vuelve sin cambio.
+// TestBFFOperacionSolicitudes: los 12 métodos de solicitudes llegan a operacion
+// con el id, el cuerpo y los parámetros intactos y con el presupuesto de bff, y el
+// error de plataforma vuelve sin cambio. Los valores son distintos por campo para
+// que un argumento descartado, vaciado o cambiado de lugar se note.
 func TestBFFOperacionSolicitudes(t *testing.T) {
-	id := opclient.Id{}
 	ctx := context.Background()
-	llamadas := map[string]func(*BFFOperacionEnProceso) error{
-		"CrearSolicitud": func(a *BFFOperacionEnProceso) error {
-			_, e := a.CrearSolicitud(ctx, opclient.CrearSolicitudEntrada{})
-			return e
-		},
-		"ListarSolicitudes": func(a *BFFOperacionEnProceso) error {
-			_, e := a.ListarSolicitudes(ctx, opclient.ListarSolicitudesParams{})
-			return e
-		},
-		"ObtenerSolicitud":         func(a *BFFOperacionEnProceso) error { _, e := a.ObtenerSolicitud(ctx, id); return e },
-		"ListarHistoricoSolicitud": func(a *BFFOperacionEnProceso) error { _, e := a.ListarHistoricoSolicitud(ctx, id); return e },
-		"CotizarSolicitud": func(a *BFFOperacionEnProceso) error {
-			_, e := a.CotizarSolicitud(ctx, id, opclient.CotizacionEntrada{})
-			return e
-		},
-		"ReprogramarSolicitud": func(a *BFFOperacionEnProceso) error {
-			_, e := a.ReprogramarSolicitud(ctx, id, opclient.ReprogramacionEntrada{})
-			return e
-		},
-		"RechazarCotizacion": func(a *BFFOperacionEnProceso) error {
-			_, e := a.RechazarCotizacion(ctx, id, opclient.AccionClienteEntrada{})
-			return e
-		},
-		"CancelarSolicitud": func(a *BFFOperacionEnProceso) error {
-			_, e := a.CancelarSolicitud(ctx, id, opclient.AccionClienteEntrada{})
-			return e
-		},
-		"ConfirmarPago": func(a *BFFOperacionEnProceso) error {
-			_, e := a.ConfirmarPago(ctx, id, opclient.PagoEntrada{})
-			return e
-		},
-		"RevertirPago": func(a *BFFOperacionEnProceso) error {
-			_, e := a.RevertirPago(ctx, id, opclient.MotivoEntrada{})
-			return e
-		},
-		"AprobarSolicitud": func(a *BFFOperacionEnProceso) error { _, e := a.AprobarSolicitud(ctx, id); return e },
-		"RechazarSolicitud": func(a *BFFOperacionEnProceso) error {
-			_, e := a.RechazarSolicitud(ctx, id, opclient.MotivoEntrada{})
-			return e
-		},
+	idA := opclient.Id(uuid.MustParse("a1a1a1a1-0000-4000-8000-000000000001"))
+	servicio := time.Date(2027, 3, 4, 5, 6, 7, 0, time.UTC)
+	cita := time.Date(2027, 3, 6, 18, 30, 0, 0, time.UTC)
+	estado := opclient.SolicitudCotizado
+	cursor := "cursor-solicitudes-77"
+	tipo := "refrigerado"
+	placas := "ABC-123-Z"
+	notas := "notas de la cotizacion"
+	motivoCliente := "motivo del cliente 42"
+	referencia := "REF-PAGO-9"
+	fechaPago := openapi_types.Date{Time: time.Date(2027, 2, 3, 0, 0, 0, 0, time.UTC)}
+
+	crear := opclient.CrearSolicitudEntrada{
+		Origen:            "Monterrey",
+		Destinos:          []opclient.Destino{{Nombre: "Puebla", FechaCita: &cita}},
+		FechaHoraServicio: &servicio,
+		TipoServicio:      &tipo,
+		Tracto:            &opclient.Tracto{Placas: &placas},
 	}
-	if len(llamadas) != 12 {
-		t.Fatalf("se esperaban 12 métodos de solicitudes, hay %d", len(llamadas))
+	listar := opclient.ListarSolicitudesParams{Estado: &estado, Cursor: &cursor}
+	cotizacion := opclient.CotizacionEntrada{FechaHoraServicio: servicio, Moneda: "USD", Monto: "1234.56", Notas: &notas}
+	reprog := opclient.ReprogramacionEntrada{FechaHoraServicio: cita, Motivo: "se movió la carga"}
+	rechCot := opclient.AccionClienteEntrada{Motivo: &motivoCliente}
+	cancel := opclient.AccionClienteEntrada{Motivo: &motivoCliente}
+	pago := opclient.PagoEntrada{FechaPago: fechaPago, Referencia: &referencia}
+	reversa := opclient.MotivoEntrada{Motivo: "pago duplicado"}
+	rechazo := opclient.MotivoEntrada{Motivo: "no hay unidades disponibles"}
+
+	casos := []struct {
+		nombre   string
+		llamar   func(*BFFOperacionEnProceso) error
+		esperado []any // lo que debe ver operacion, en el orden de su firma
+	}{
+		{"CrearSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.CrearSolicitud(ctx, crear); return e }, []any{crear}},
+		{"ListarSolicitudes", func(a *BFFOperacionEnProceso) error { _, e := a.ListarSolicitudes(ctx, listar); return e }, []any{listar}},
+		{"ObtenerSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.ObtenerSolicitud(ctx, idA); return e }, []any{idA}},
+		{"ListarHistoricoSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.ListarHistoricoSolicitud(ctx, idA); return e }, []any{idA}},
+		{"CotizarSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.CotizarSolicitud(ctx, idA, cotizacion); return e }, []any{idA, cotizacion}},
+		{"ReprogramarSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.ReprogramarSolicitud(ctx, idA, reprog); return e }, []any{idA, reprog}},
+		{"RechazarCotizacion", func(a *BFFOperacionEnProceso) error { _, e := a.RechazarCotizacion(ctx, idA, rechCot); return e }, []any{idA, rechCot}},
+		{"CancelarSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.CancelarSolicitud(ctx, idA, cancel); return e }, []any{idA, cancel}},
+		{"ConfirmarPago", func(a *BFFOperacionEnProceso) error { _, e := a.ConfirmarPago(ctx, idA, pago); return e }, []any{idA, pago}},
+		{"RevertirPago", func(a *BFFOperacionEnProceso) error { _, e := a.RevertirPago(ctx, idA, reversa); return e }, []any{idA, reversa}},
+		{"AprobarSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.AprobarSolicitud(ctx, idA); return e }, []any{idA}},
+		{"RechazarSolicitud", func(a *BFFOperacionEnProceso) error { _, e := a.RechazarSolicitud(ctx, idA, rechazo); return e }, []any{idA, rechazo}},
 	}
-	for nombre, llamar := range llamadas {
-		t.Run(nombre, func(t *testing.T) {
+	if len(casos) != 12 {
+		t.Fatalf("se esperaban 12 métodos de solicitudes, hay %d", len(casos))
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
 			fake := &operacionFake{}
-			if err := llamar(NewBFFOperacion(fake)); err != nil {
+			if err := c.llamar(NewBFFOperacion(fake)); err != nil {
 				t.Fatalf("no se esperaba error: %v", err)
 			}
 			if _, ok := fake.ctxVisto.Deadline(); !ok {
 				t.Fatal("operacion recibió el contexto sin el presupuesto de bff")
 			}
+			if !reflect.DeepEqual(fake.vistos, c.esperado) {
+				t.Fatalf("operacion recibió %#v; se esperaba %#v", fake.vistos, c.esperado)
+			}
 			conflicto := platformerrors.NewConflictoCodigo("transicion_no_permitida", "operacion: transición")
-			err := llamar(NewBFFOperacion(&operacionFake{err: conflicto}))
+			err := c.llamar(NewBFFOperacion(&operacionFake{err: conflicto}))
 			if platformerrors.CodigoDe(err) != "transicion_no_permitida" || platformerrors.AsCategory(err) != platformerrors.CategoryConflicto {
 				t.Fatalf("error = %v; se esperaba el conflicto sin cambio", err)
 			}

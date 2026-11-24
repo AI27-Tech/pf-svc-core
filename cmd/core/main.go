@@ -57,8 +57,8 @@ const (
 	envDBOpAuditoria  = "DB_OP_AUDITORIA_URL"
 	envDBOpRoster     = "DB_OP_ROSTER_URL"
 	// envDBOpSolicitudes es el pool del módulo `solicitudes` de operacion (ADR 38
-	// y 39). Sin él operacion no monta ninguna ruta de solicitudes ni arranca el
-	// worker de vencimiento.
+	// y 39). Es obligatoria como las demás de rolesDeBD: sin
+	// ella core termina al arrancar listando las variables que faltan.
 	envDBOpSolicitudes = "DB_OP_SOLICITUDES_URL"
 	envDBReportes      = "DB_SVC_REPORTES_URL"
 	envDBIdentidad     = "DB_SVC_IDENTIDAD_URL"

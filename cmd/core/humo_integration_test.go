@@ -131,7 +131,8 @@ func TestHumoSolicitudHastaViajeAprobadoYConversacion(t *testing.T) {
 	h := armarHumo(t)
 
 	// Con el pool op_solicitudes operacion arranca el relay del outbox de
-	// solicitudes y el worker de vencimiento; sin pool no hay ni uno ni otro.
+	// solicitudes y el worker de vencimiento. Si core dejara de pasárselo (pool nil
+	// en operacion.Pools), operacion arrancaría sin ellos y sin rutas, en silencio.
 	for _, w := range []string{"outbox-relay:solicitudes", "vencimiento:solicitudes"} {
 		if !contieneSubcadena(h.workers, w) {
 			t.Fatalf("falta el worker %q entre %v: operacion no recibió el pool op_solicitudes", w, h.workers)

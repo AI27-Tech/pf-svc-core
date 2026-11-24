@@ -70,7 +70,7 @@ falten, no solo la primera):
 | `DB_OP_BITACORA_URL` | `op_bitacora` |
 | `DB_OP_AUDITORIA_URL` | `op_auditoria` |
 | `DB_OP_ROSTER_URL` | `op_roster` |
-| `DB_OP_SOLICITUDES_URL` | `op_solicitudes` (módulo `solicitudes` de operacion; sin él no hay rutas de solicitudes ni worker de vencimiento) |
+| `DB_OP_SOLICITUDES_URL` | `op_solicitudes` (módulo `solicitudes` de operacion; como las demás es obligatoria: sin ella `core` termina al arrancar, nombrando las variables que faltan) |
 | `DB_SVC_REPORTES_URL` | `svc_reportes` |
 | `DB_SVC_IDENTIDAD_URL` | `svc_identidad` |
 

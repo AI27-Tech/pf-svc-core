@@ -35,11 +35,12 @@ func TestMigrateDosVecesYLlegaLoNuevo(t *testing.T) {
 		return ok
 	}
 
-	// Lo nuevo de la ola: tablas de solicitudes, columna de viajes/0008 ya
-	// existente en V2 y la columna de mensajeria/0011-0013.
+	// Lo nuevo de la ola: las tablas de solicitudes, viajes y mensajeria que usan
+	// el humo y el módulo; la columna mensajeria.rol_sujeto.idp_subject (0013) se
+	// comprueba más abajo.
 	for _, tabla := range []string{
 		"solicitudes.solicitud", "solicitudes.transicion_solicitud", "solicitudes.outbox",
-		"solicitudes.cotizacion", "solicitudes.pago_solicitud", "viajes.viaje", "viajes.destino", "viajes.outbox",
+		"solicitudes.cotizacion", "solicitudes.pago_solicitud", "solicitudes.reprogramacion_solicitud", "viajes.viaje", "viajes.destino", "viajes.outbox",
 		"mensajeria.conversacion",
 	} {
 		if !existe("EXISTS (SELECT 1 FROM pg_tables WHERE schemaname||'.'||tablename = $1)", tabla) {
@@ -50,6 +51,7 @@ func TestMigrateDosVecesYLlegaLoNuevo(t *testing.T) {
 	// Los grants de la excepción (ADR 39, viajes/0008) y de auditoria/0003.
 	for _, g := range []struct{ tabla, priv string }{
 		{"viajes.viaje", "INSERT"}, {"viajes.destino", "INSERT"}, {"viajes.outbox", "INSERT"},
+		{"auditoria.registro_auditoria", "INSERT"},
 	} {
 		if !existe("has_table_privilege('op_solicitudes', $1, $2)", g.tabla, g.priv) {
 			t.Errorf("op_solicitudes sin %s sobre %s", g.priv, g.tabla)
@@ -60,6 +62,11 @@ func TestMigrateDosVecesYLlegaLoNuevo(t *testing.T) {
 	}
 	if !existe("has_schema_privilege('op_solicitudes', 'auditoria', 'USAGE')") {
 		t.Error("op_solicitudes sin USAGE sobre auditoria (auditoria/0003)")
+	}
+
+	// mensajeria/0013: el sujeto de un rol se identifica por el del IdP.
+	if !existe("EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'mensajeria' AND table_name = 'rol_sujeto' AND column_name = 'idp_subject')") {
+		t.Error("falta mensajeria.rol_sujeto.idp_subject (mensajeria/0013)")
 	}
 
 	// search_path del rol: lo fija el bootstrap, no la sesión.

@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -179,6 +180,35 @@ func TestHumoSolicitudHastaViajeAprobadoYConversacion(t *testing.T) {
 	paso("confirmar pago", http.MethodPut, "/pago", "cotizacion", map[string]any{
 		"fecha_pago": time.Now().UTC().Format("2006-01-02"), "referencia": "REF-1",
 	}, "PAGADO")
+	// 3b. Datos comerciales (DEC-148 #67 y #73), con la solicitud en PAGADO, el único
+	// estado en que el jefe operativo la ve: `cotizacion` ve la cotización y el
+	// pago; el jefe operativo recibe los campos en null (la clave va, no se omite).
+	// Es el comportamiento del contrato: si algún día se omiten, esta prueba avisa.
+	verDetalle := func(rol string) (map[string]json.RawMessage, string) {
+		t.Helper()
+		c, b := h.llamar(t, http.MethodGet, ruta, rol, nil)
+		var m map[string]json.RawMessage
+		if c != http.StatusOK || json.Unmarshal(b, &m) != nil {
+			t.Fatalf("detalle como %s: %d %s", rol, c, b)
+		}
+		return m, string(b)
+	}
+	if m, _ := verDetalle("cotizacion"); string(m["cotizacion"]) == "null" || string(m["pago"]) == "null" || m["cotizacion"] == nil || m["pago"] == nil {
+		t.Fatalf("cotizacion debía ver cotizacion y pago; vio cotizacion=%s pago=%s", m["cotizacion"], m["pago"])
+	}
+	m, crudo := verDetalle("jefe_operativo")
+	for _, campo := range []string{"cotizacion", "pago"} {
+		v, hay := m[campo]
+		if !hay || string(v) != "null" {
+			t.Fatalf("jefe_operativo: %q = %s (presente=%v); se esperaba la clave presente con null", campo, v, hay)
+		}
+	}
+	for _, dato := range []string{"1500.00", "REF-1"} {
+		if strings.Contains(crudo, dato) {
+			t.Fatalf("jefe_operativo recibió el dato comercial %q: %s", dato, crudo)
+		}
+	}
+
 	// 4. El jefe operativo aprueba.
 	paso("aprobar", http.MethodPost, "/aprobacion", "jefe_operativo", nil, "APROBADO")
 

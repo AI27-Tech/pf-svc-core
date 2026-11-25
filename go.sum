@@ -1,7 +1,7 @@
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
-github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.46 h1:wC3W8tSj2GP7qfa7sijwlHWI1tA4IkfDnzII3OzIVy0=
-github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.46/go.mod h1:JlGX2WLFfC1+gxIhO+I47U002vqxhrjgCKXZZ4+wmY8=
+github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.47 h1:u3VPHlp8hISfY1ZR0AjJ/LAZJdU1H7gHDnnm7G4Sm9k=
+github.com/AI27-Tech/pf-pkg-contracts/packages/api-client-go v0.1.0-tracer.47/go.mod h1:JlGX2WLFfC1+gxIhO+I47U002vqxhrjgCKXZZ4+wmY8=
 github.com/AI27-Tech/pf-pkg-platform-go v0.1.10 h1:PCgsH+x+Ts+mCRIW/dqjbifuVCKgW244QNwFTz/UiUA=
 github.com/AI27-Tech/pf-pkg-platform-go v0.1.10/go.mod h1:1djk0Mx1Y8AriWQdqgeRr8PnJbwa+c8dMFZFziZ993Q=
 github.com/AI27-Tech/pf-svc-bff v0.1.25 h1:NcZuukgsZPeMNkYCOmmTWQRjIJM8C4WyjDP96cgTnJ8=
@@ -10,8 +10,8 @@ github.com/AI27-Tech/pf-svc-catalogos v0.1.8 h1:7tDfJ5Il2VRsQ6IIdqmR28nDiUF2DSYR
 github.com/AI27-Tech/pf-svc-catalogos v0.1.8/go.mod h1:pjKN3kiIk32D7S9KcLpCugGl2C+9qxNNQl0YPS/+PLw=
 github.com/AI27-Tech/pf-svc-identidad v0.1.10 h1:2VkizjurO6sR+qw2CEswjb8WSnacDsT1M18x492nEiE=
 github.com/AI27-Tech/pf-svc-identidad v0.1.10/go.mod h1:WnpU0wwod9U3J5n7fWAG5zfFZRJdrodf4FrUVR3eXc8=
-github.com/AI27-Tech/pf-svc-mensajeria v0.1.10 h1:DkwGccmH7WBiYM61RXQVNBRsiaFNyMR8I2MV8EKM65U=
-github.com/AI27-Tech/pf-svc-mensajeria v0.1.10/go.mod h1:aLLp+Mo38Xvv8gwWOOXaLcgroNCW5SD+zHHCIM/ZEcw=
+github.com/AI27-Tech/pf-svc-mensajeria v0.1.11 h1:B5lI6I5ZHp464bRY53vp4ocGa7/EshSW8m4fl/s7kEg=
+github.com/AI27-Tech/pf-svc-mensajeria v0.1.11/go.mod h1:aLLp+Mo38Xvv8gwWOOXaLcgroNCW5SD+zHHCIM/ZEcw=
 github.com/AI27-Tech/pf-svc-operacion v0.1.22 h1:cFljIPbA6sQ9CDJ/OzpvHkUCVYEqu654aW7Roh4ui1Y=
 github.com/AI27-Tech/pf-svc-operacion v0.1.22/go.mod h1:sPl4YcW18BGWhX1AsUGyfmExJ3s/3lHCGrPtAt1vjvI=
 github.com/AI27-Tech/pf-svc-reportes v0.1.7 h1:Eo//TjSNqU2uGGeB5y4O7WukbFLDF5eoVujsi8d1n0I=

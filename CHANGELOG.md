@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-11-25 — Pines: `mensajeria` v0.1.11 y contratos tracer.47
+
+**Para quién:** quien despliega `core`. Sin cambio de comportamiento propio: `core` adopta las guardas de destino de la transferencia de `mensajeria` (DEC-148 #74 a #77).
+
+**Cambios:**
+- `go.mod`: `mensajeria` `v0.1.10` a `v0.1.11` y contratos `tracer.46` a `tracer.47` (ola solo de documentación). Ningún otro módulo AI27 cambia; sin `replace`. `go build` no pidió renombrar constantes ni ajustar adaptadores.
+
 ## 2026-11-24 17:00 — Seguimiento de la revisión del PR #90 (`core` ola 3)
 
 **Para quién:** quien corre las pruebas de `core` y quien mantiene su CI.
